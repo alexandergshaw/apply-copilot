@@ -11,6 +11,7 @@ import { ManualJobImportForm } from "./ManualJobImportForm";
 type ImportMode = "url" | "manual";
 
 export function JobUrlImportForm() {
+  const showDebugPanel = process.env.NODE_ENV !== "production";
   const [mode, setMode] = useState<ImportMode>("url");
   const [jobUrl, setJobUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +120,21 @@ export function JobUrlImportForm() {
 
       {mode === "url" && extracted ? (
         <JobImportPreviewForm extracted={extracted} submittedUrl={submittedUrl} />
+      ) : null}
+
+      {showDebugPanel && mode === "url" && extracted ? (
+        <section className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 shadow-sm">
+          <h3 className="font-semibold">Extraction Debug (Development Only)</h3>
+          <p className="mt-1 text-sky-800">
+            Source: <span className="font-medium">{extracted.extraction_source}</span>
+          </p>
+          <p className="mt-1 break-all text-sky-800">
+            Submitted URL: <span className="font-medium">{submittedUrl}</span>
+          </p>
+          <pre className="mt-3 max-h-64 overflow-auto rounded-md bg-white p-3 text-xs text-slate-800">
+            {JSON.stringify(extracted, null, 2)}
+          </pre>
+        </section>
       ) : null}
     </section>
   );
