@@ -21,6 +21,10 @@ type FetchJobResult = ActionResult & {
   data?: ExtractedJobPosting;
 };
 
+type CreateManualJobResult = ActionResult & {
+  canOverride?: boolean;
+};
+
 function getTextField(formData: FormData, key: string): string {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
@@ -115,6 +119,10 @@ function mapInsertErrorMessage(message: string, code?: string): string {
   return "Unable to save this job right now. Please try again in a moment.";
 }
 
+function isDuplicateApplyUrlError(message: string, code?: string): boolean {
+  return code === "23505" && message.toLowerCase().includes("apply_url");
+}
+
 export async function fetchJobFromUrl(formData: FormData): Promise<FetchJobResult> {
   const rawUrl = getTextField(formData, "url");
   const parsedUrl = parseSubmittedUrl(rawUrl);
@@ -175,7 +183,7 @@ export async function fetchJobFromUrl(formData: FormData): Promise<FetchJobResul
   return { ok: true, data: extracted };
 }
 
-export async function createManualJob(formData: FormData): Promise<ActionResult> {
+export async function createManualJob(formData: FormData): Promise<CreateManualJobResult> {
   const supabase = getSupabaseServerClient();
   if (!supabase) {
     const missingVars = getMissingSupabaseEnvVars();
@@ -207,8 +215,9 @@ export async function createManualJob(formData: FormData): Promise<ActionResult>
   }
 
   const queueForAutoApply = isChecked(formData, "queue_for_auto_apply");
+  const overrideExistingUrl = isChecked(formData, "override_existing_url");
 
-  const { error } = await supabase.from("jobs").insert({
+  const payload = {
     source_id: null,
     title,
     company: toNullableText(getTextField(formData, "company")),
@@ -220,9 +229,33 @@ export async function createManualJob(formData: FormData): Promise<ActionResult>
     auto_apply_enabled: queueForAutoApply,
     auto_apply_status: queueForAutoApply ? "queued" : "not_requested",
     auto_apply_approved_at: queueForAutoApply ? new Date().toISOString() : null,
-  });
+  };
+
+  const { error } = await supabase.from("jobs").insert(payload);
 
   if (error) {
+    if (overrideExistingUrl && applyUrl && isDuplicateApplyUrlError(error.message, error.code)) {
+      const { error: updateError } = await supabase.from("jobs").update(payload).eq("apply_url", applyUrl);
+      if (!updateError) {
+        revalidatePath("/jobs");
+        redirect("/jobs");
+      }
+
+      return {
+        ok: false,
+        message: mapInsertErrorMessage(updateError.message, updateError.code),
+      };
+    }
+
+    if (isDuplicateApplyUrlError(error.message, error.code)) {
+      return {
+        ok: false,
+        canOverride: true,
+        message:
+          "A job with this apply URL already exists. Enable override to replace the existing job details.",
+      };
+    }
+
     return {
       ok: false,
       message: mapInsertErrorMessage(error.message, error.code),

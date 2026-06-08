@@ -53,6 +53,8 @@ function sourceLabel(source: ExtractedJobPosting["extraction_source"]): string {
 export function JobImportPreviewForm({ extracted, submittedUrl }: JobImportPreviewFormProps) {
   const [form, setForm] = useState<FormState>(() => toFormState(extracted));
   const [error, setError] = useState<string | null>(null);
+  const [allowOverride, setAllowOverride] = useState(false);
+  const [showOverrideOption, setShowOverrideOption] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const submit = () => {
@@ -76,10 +78,16 @@ export function JobImportPreviewForm({ extracted, submittedUrl }: JobImportPrevi
     if (form.queueForAutoApply) {
       formData.set("queue_for_auto_apply", "on");
     }
+    if (allowOverride) {
+      formData.set("override_existing_url", "on");
+    }
 
     startTransition(async () => {
       const result = await createManualJob(formData);
       if (!result.ok) {
+        if (result.canOverride) {
+          setShowOverrideOption(true);
+        }
         setError(result.message ?? "Unable to save imported job.");
       }
     });
@@ -199,6 +207,22 @@ export function JobImportPreviewForm({ extracted, submittedUrl }: JobImportPrevi
           Queue for auto-apply after saving
         </label>
 
+        {showOverrideOption ? (
+          <label className="block rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <span className="inline-flex items-center gap-2 font-medium">
+              <input
+                checked={allowOverride}
+                type="checkbox"
+                onChange={(event) => setAllowOverride(event.target.checked)}
+              />
+              Override existing job for this apply URL
+            </span>
+            <span className="mt-1 block text-amber-800">
+              This will replace the existing saved job details for the same URL.
+            </span>
+          </label>
+        ) : null}
+
         {error ? (
           <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
@@ -211,7 +235,7 @@ export function JobImportPreviewForm({ extracted, submittedUrl }: JobImportPrevi
             type="submit"
             disabled={isPending}
           >
-            {isPending ? "Saving..." : "Save Job"}
+            {isPending ? "Saving..." : allowOverride ? "Override and Save Job" : "Save Job"}
           </button>
         </div>
       </form>
