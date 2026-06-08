@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 
 import type { ActionResult } from "@/lib/actions";
 import {
+  getDefaultResumeTemplateForProfile,
+  getResumeTemplates,
+  getUserProfile,
+} from "@/lib/queries";
+import {
   downloadResumeTemplateDocx,
   tailorResume,
   uploadTailoredResumeDocx,
@@ -28,7 +33,20 @@ function mapRlsErrorMessage(message: string, code?: string): string {
   return message;
 }
 
-async function upsertTailoredDraft(jobId: number, resumeTemplateId: number): Promise<ActionResult> {
+type TailorDraftResult = {
+  ok: true;
+  message: string;
+  jobId: number;
+  resumeTemplateId: number;
+  tailoredResumeId: number;
+  outputFilename: string;
+};
+
+function isTailorDraftResult(result: ActionResult | TailorDraftResult): result is TailorDraftResult {
+  return result.ok === true && "tailoredResumeId" in result;
+}
+
+async function upsertTailoredDraft(jobId: number, resumeTemplateId: number): Promise<ActionResult | TailorDraftResult> {
   const supabase = getSupabaseServerClient();
   if (!supabase) {
     return {
@@ -149,18 +167,46 @@ async function upsertTailoredDraft(jobId: number, resumeTemplateId: number): Pro
     }
   }
 
-  const { error } = activeDraft
-    ? await supabase.from("tailored_resumes").update(draftPayload).eq("id", activeDraft.id)
-    : await supabase.from("tailored_resumes").insert(draftPayload);
+  let tailoredResumeId: number;
+  if (activeDraft) {
+    const { data: updatedRows, error } = await supabase
+      .from("tailored_resumes")
+      .update(draftPayload)
+      .eq("id", activeDraft.id)
+      .select("id")
+      .limit(1);
 
-  if (error) {
-    return { ok: false, message: mapRlsErrorMessage(error.message, error.code) };
+    if (error) {
+      return { ok: false, message: mapRlsErrorMessage(error.message, error.code) };
+    }
+
+    tailoredResumeId = updatedRows?.[0]?.id ?? activeDraft.id;
+  } else {
+    const { data: insertedRows, error } = await supabase
+      .from("tailored_resumes")
+      .insert(draftPayload)
+      .select("id")
+      .limit(1);
+
+    if (error) {
+      return { ok: false, message: mapRlsErrorMessage(error.message, error.code) };
+    }
+
+    const insertedId = insertedRows?.[0]?.id;
+    if (!insertedId) {
+      return { ok: false, message: "Tailored resume draft saved, but no record id was returned." };
+    }
+    tailoredResumeId = insertedId;
   }
 
   revalidatePath("/jobs");
   revalidatePath(`/jobs/${job.id}`);
   return {
     ok: true,
+    jobId: job.id,
+    resumeTemplateId: template.id,
+    tailoredResumeId,
+    outputFilename: tailoredResult.outputFilename,
     message: "Tailored DOCX draft generated. Review before using.",
   };
 }
@@ -252,7 +298,11 @@ export async function generateTailoredResume(
     return { ok: false, message: "Invalid resume template id." };
   }
 
-  return upsertTailoredDraft(numericJobId, numericTemplateId);
+  const result = await upsertTailoredDraft(numericJobId, numericTemplateId);
+  if (!result.ok) {
+    return result;
+  }
+  return { ok: true, message: result.message };
 }
 
 export async function automaticallyTailorResume(
@@ -260,6 +310,49 @@ export async function automaticallyTailorResume(
   resumeTemplateId: number,
 ): Promise<ActionResult> {
   return generateTailoredResume(jobId, resumeTemplateId);
+}
+
+export type TailorResumeForDownloadResult = ActionResult & {
+  tailoredResumeId?: number;
+  jobId?: number;
+  outputFilename?: string;
+};
+
+export async function tailorResumeForDownload(jobId: string): Promise<TailorResumeForDownloadResult> {
+  const numericJobId = parseJobId(jobId);
+  if (numericJobId == null) {
+    return { ok: false, message: "Invalid job id." };
+  }
+
+  const profile = await getUserProfile();
+  if (!profile) {
+    return { ok: false, message: "No user profile found. Create your profile first." };
+  }
+
+  const defaultTemplate = await getDefaultResumeTemplateForProfile(profile.id);
+  let selectedTemplateId = defaultTemplate?.id ?? null;
+
+  if (selectedTemplateId == null) {
+    const templates = await getResumeTemplates();
+    selectedTemplateId = templates[0]?.id ?? null;
+  }
+
+  if (selectedTemplateId == null) {
+    return { ok: false, message: "No resume template found. Upload one first." };
+  }
+
+  const result = await upsertTailoredDraft(numericJobId, selectedTemplateId);
+  if (!isTailorDraftResult(result)) {
+    return result;
+  }
+
+  return {
+    ok: true,
+    message: result.message,
+    tailoredResumeId: result.tailoredResumeId,
+    jobId: result.jobId,
+    outputFilename: result.outputFilename,
+  };
 }
 
 export async function regenerateTailoredResume(

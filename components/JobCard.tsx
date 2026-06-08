@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { TailorResumeButton } from "@/components/jobs/TailorResumeButton";
 import type { Job } from "@/lib/mock-data";
 import { StatusBadge } from "@/components/StatusBadge";
 
@@ -29,11 +30,12 @@ export function JobCard({ job }: JobCardProps) {
         >
           View details
         </Link>
+        <TailorResumeButton jobId={job.id} />
         <Link
           className="inline-flex rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
           href={`/jobs/${job.id}#tailor-resume`}
         >
-          Tailor Resume
+          Open tailoring
         </Link>
         {job.applyUrl ? (
           <a

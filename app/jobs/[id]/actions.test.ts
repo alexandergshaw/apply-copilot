@@ -1,17 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  getDefaultResumeTemplateForProfileMock,
+  getResumeTemplatesMock,
+  getUserProfileMock,
   downloadResumeTemplateDocxMock,
   tailorResumeMock,
   uploadTailoredResumeDocxMock,
   getSupabaseServerClientMock,
   revalidatePathMock,
 } = vi.hoisted(() => ({
+  getDefaultResumeTemplateForProfileMock: vi.fn(),
+  getResumeTemplatesMock: vi.fn(),
+  getUserProfileMock: vi.fn(),
   downloadResumeTemplateDocxMock: vi.fn(),
   tailorResumeMock: vi.fn(),
   uploadTailoredResumeDocxMock: vi.fn(),
   getSupabaseServerClientMock: vi.fn(),
   revalidatePathMock: vi.fn(),
+}));
+
+vi.mock("@/lib/queries", () => ({
+  getDefaultResumeTemplateForProfile: getDefaultResumeTemplateForProfileMock,
+  getResumeTemplates: getResumeTemplatesMock,
+  getUserProfile: getUserProfileMock,
 }));
 
 vi.mock("@/lib/resume-tailoring", () => ({
@@ -28,11 +40,15 @@ vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
 }));
 
-import { automaticallyTailorResume, generateTailoredResume } from "./actions";
+import {
+  automaticallyTailorResume,
+  generateTailoredResume,
+  tailorResumeForDownload,
+} from "./actions";
 
 function createSupabaseMock() {
-  const insertMock = vi.fn().mockResolvedValue({ error: null });
-  const updateDraftMock = vi.fn().mockResolvedValue({ error: null });
+  const insertMock = vi.fn().mockResolvedValue({ data: [{ id: 101 }], error: null });
+  const updateDraftMock = vi.fn().mockResolvedValue({ data: [{ id: 100 }], error: null });
 
   const fromMock = vi.fn((table: string) => {
     if (table === "jobs") {
@@ -102,11 +118,19 @@ function createSupabaseMock() {
             }),
           }),
         }),
-        update: () => ({
-          eq: (...args: unknown[]) => updateDraftMock(...args),
+        update: (payload: unknown) => ({
+          eq: () => ({
+            select: () => ({
+              limit: () => updateDraftMock(payload),
+            }),
+          }),
           in: () => Promise.resolve({ error: null }),
         }),
-        insert: insertMock,
+        insert: (payload: unknown) => ({
+          select: () => ({
+            limit: () => insertMock(payload),
+          }),
+        }),
       };
     }
 
@@ -119,6 +143,9 @@ function createSupabaseMock() {
 describe("generateTailoredResume", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getUserProfileMock.mockResolvedValue({ id: "profile-123" });
+    getDefaultResumeTemplateForProfileMock.mockResolvedValue({ id: 7 });
+    getResumeTemplatesMock.mockResolvedValue([{ id: 7 }]);
     downloadResumeTemplateDocxMock.mockResolvedValue(Buffer.from("docx"));
     tailorResumeMock.mockResolvedValue({
       tailoredText: "Tailored text",
@@ -168,6 +195,9 @@ describe("generateTailoredResume", () => {
 describe("automaticallyTailorResume", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getUserProfileMock.mockResolvedValue({ id: "profile-123" });
+    getDefaultResumeTemplateForProfileMock.mockResolvedValue({ id: 7 });
+    getResumeTemplatesMock.mockResolvedValue([{ id: 7 }]);
     downloadResumeTemplateDocxMock.mockResolvedValue(Buffer.from("docx"));
     tailorResumeMock.mockResolvedValue({
       tailoredText: "Tailored text",
@@ -192,5 +222,52 @@ describe("automaticallyTailorResume", () => {
 
     expect(result.ok).toBe(true);
     expect(tailorResumeMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("tailorResumeForDownload", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getUserProfileMock.mockResolvedValue({ id: "profile-123" });
+    getDefaultResumeTemplateForProfileMock.mockResolvedValue({ id: 7 });
+    getResumeTemplatesMock.mockResolvedValue([{ id: 7 }]);
+    downloadResumeTemplateDocxMock.mockResolvedValue(Buffer.from("docx"));
+    tailorResumeMock.mockResolvedValue({
+      tailoredText: "Tailored text",
+      outputDocxBuffer: Buffer.from("generated-docx"),
+      outputFilename: "cloudline-staff-pm-tailored-resume.docx",
+      sourceDocxStoragePath: "profile-123/7/resume.docx",
+      tailoringNotes: "Draft DOCX generated automatically from the selected resume template. Review before using.",
+      keywordCoverage: { status: "stub" },
+      matchScore: 88,
+      status: "draft",
+    });
+    uploadTailoredResumeDocxMock.mockResolvedValue({
+      path: "profile-123/12/tailored-resume-7-123.docx",
+    });
+  });
+
+  it("returns tailored resume id and filename for download", async () => {
+    const supabaseMock = createSupabaseMock();
+    getSupabaseServerClientMock.mockReturnValue(supabaseMock.client);
+
+    const result = await tailorResumeForDownload("12");
+
+    expect(result.ok).toBe(true);
+    expect(result.tailoredResumeId).toBe(101);
+    expect(result.jobId).toBe(12);
+    expect(result.outputFilename).toBe("cloudline-staff-pm-tailored-resume.docx");
+  });
+
+  it("returns friendly error when no template exists", async () => {
+    const supabaseMock = createSupabaseMock();
+    getSupabaseServerClientMock.mockReturnValue(supabaseMock.client);
+    getDefaultResumeTemplateForProfileMock.mockResolvedValue(null);
+    getResumeTemplatesMock.mockResolvedValue([]);
+
+    const result = await tailorResumeForDownload("12");
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toBe("No resume template found. Upload one first.");
   });
 });
