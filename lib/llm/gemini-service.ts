@@ -7,6 +7,31 @@ import type {
 } from "@/lib/llm/types";
 
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+const DEFAULT_MAX_RETRIES = 3;
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 503]);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableGeminiError(error: unknown): boolean {
+  if (!error) {
+    return false;
+  }
+
+  const status = (error as { status?: unknown }).status;
+  if (typeof status === "number" && RETRYABLE_STATUS_CODES.has(status)) {
+    return true;
+  }
+  if (typeof status === "string" && /UNAVAILABLE|RESOURCE_EXHAUSTED|INTERNAL/i.test(status)) {
+    return true;
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  return /\b(429|500|503)\b|UNAVAILABLE|RESOURCE_EXHAUSTED|overloaded|high demand|try again later/i.test(
+    message,
+  );
+}
 
 function buildGeminiPrompt(input: LlmResumeTailoringInput): string {
   return [
@@ -83,6 +108,7 @@ type GeminiResumeTailoringServiceOptions = {
   client?: GoogleGenAI;
   apiKey?: string;
   model?: string;
+  maxRetries?: number;
 };
 
 export class GeminiResumeTailoringService implements LlmResumeTailoringService {
@@ -96,17 +122,39 @@ export class GeminiResumeTailoringService implements LlmResumeTailoringService {
 
     const model = this.options.model ?? (process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL);
     const ai = this.options.client ?? new GoogleGenAI({ apiKey });
+    const maxRetries = this.options.maxRetries ?? DEFAULT_MAX_RETRIES;
 
-    let rawText: string;
-    try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: buildGeminiPrompt(input),
-        config: { responseMimeType: "application/json" },
-      });
-      rawText = response.text?.trim() ?? "";
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : "Unknown Gemini error";
+    let rawText = "";
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: buildGeminiPrompt(input),
+          config: { responseMimeType: "application/json" },
+        });
+        rawText = response.text?.trim() ?? "";
+        lastError = undefined;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt < maxRetries && isRetryableGeminiError(error)) {
+          // Exponential backoff with jitter: ~0.5s, 1s, 2s, ...
+          const backoffMs = 500 * 2 ** attempt + Math.floor(Math.random() * 250);
+          await sleep(backoffMs);
+          continue;
+        }
+        break;
+      }
+    }
+
+    if (lastError !== undefined) {
+      const detail = lastError instanceof Error ? lastError.message : "Unknown Gemini error";
+      if (isRetryableGeminiError(lastError)) {
+        throw new Error(
+          `Gemini is temporarily unavailable after ${maxRetries + 1} attempts (high demand). Please try again in a moment. Details: ${detail}`,
+        );
+      }
       throw new Error(`Gemini resume tailoring request failed: ${detail}`);
     }
 
