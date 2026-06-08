@@ -1,13 +1,23 @@
-export type SupabasePlaceholderClient = {
-  ready: false;
-  message: string;
-};
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const placeholderClient: SupabasePlaceholderClient = {
-  ready: false,
-  message: "Supabase is not configured yet. Add environment variables and initialization in a future step.",
-};
+import { SUPABASE_ANON_KEY, SUPABASE_URL, isSupabaseConfigured } from "@/lib/supabase/config";
 
-export function getSupabaseBrowserClient(): SupabasePlaceholderClient {
-  return placeholderClient;
+let browserClient: SupabaseClient | null = null;
+
+/**
+ * Returns a memoized Supabase client for use in the browser.
+ *
+ * Returns `null` when the Supabase environment variables are not configured,
+ * allowing callers to fall back to mock data.
+ */
+export function getSupabaseBrowserClient(): SupabaseClient | null {
+  if (!isSupabaseConfigured()) {
+    return null;
+  }
+
+  if (!browserClient) {
+    browserClient = createClient(SUPABASE_URL as string, SUPABASE_ANON_KEY as string);
+  }
+
+  return browserClient;
 }

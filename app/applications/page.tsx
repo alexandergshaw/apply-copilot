@@ -1,7 +1,11 @@
 import { ApplicationTable } from "@/components/ApplicationTable";
-import { applications } from "@/lib/mock-data";
+import { getApplications } from "@/lib/queries";
 
-export default function ApplicationsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function ApplicationsPage() {
+  const applications = await getApplications();
+
   return (
     <section className="space-y-4">
       <div>

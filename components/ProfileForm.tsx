@@ -1,15 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 
+import { updateProfile } from "@/lib/actions";
 import type { Profile } from "@/lib/mock-data";
 
 type ProfileFormProps = {
   initialProfile: Profile;
+  profileId?: string | null;
 };
 
-export function ProfileForm({ initialProfile }: ProfileFormProps) {
+export function ProfileForm({ initialProfile, profileId = null }: ProfileFormProps) {
   const [profile, setProfile] = useState<Profile>(initialProfile);
+  const [isPending, startTransition] = useTransition();
+  const [message, setMessage] = useState<string | null>(null);
+
+  const saveProfile = () => {
+    setMessage(null);
+    startTransition(async () => {
+      const result = await updateProfile(profileId, profile);
+      setMessage(result.ok ? "Profile saved." : result.message ?? "Unable to save profile.");
+    });
+  };
 
   return (
     <form className="space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -87,11 +99,14 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
       </label>
 
       <button
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-60"
         type="button"
+        disabled={isPending}
+        onClick={saveProfile}
       >
         Save profile
       </button>
+      {message ? <p className="text-sm text-slate-600">{message}</p> : null}
     </form>
   );
 }

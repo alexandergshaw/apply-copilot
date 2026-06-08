@@ -16,6 +16,21 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Supabase configuration
+
+The app reads its data from Supabase when configured, and falls back to local
+mock data (`lib/mock-data.ts`) when the environment variables below are missing.
+
+Set the following environment variables (for example in `.env.local`):
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your-project-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
+
+The database schema and seed data live in `supabase/migrations` and
+`supabase/seed.sql`.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
