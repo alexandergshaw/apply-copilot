@@ -15,8 +15,10 @@ import {
   mapJob,
   mapJobSource,
   mapResumeTemplate,
+  mapTailoredResume,
   mapUserProfile,
   type ResumeTemplate,
+  type TailoredResume,
   type UserProfile,
 } from "@/lib/supabase/types";
 
@@ -67,6 +69,30 @@ export async function getJob(id: string): Promise<Job | null> {
   }
 
   return mapJob(data);
+}
+
+export async function getJobSourceId(id: string): Promise<number | null | undefined> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return undefined;
+  }
+
+  const numericId = Number.parseInt(id, 10);
+  if (Number.isNaN(numericId)) {
+    return undefined;
+  }
+
+  const { data, error } = await supabase
+    .from("jobs")
+    .select("source_id")
+    .eq("id", numericId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return undefined;
+  }
+
+  return data.source_id;
 }
 
 export async function getApplications(): Promise<Application[]> {
@@ -143,6 +169,30 @@ export async function getResumeTemplates(): Promise<ResumeTemplate[]> {
   }
 
   return data.map((row) => mapResumeTemplate(row));
+}
+
+export async function getTailoredResumesForJob(jobId: string): Promise<TailoredResume[]> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return [];
+  }
+
+  const numericId = Number.parseInt(jobId, 10);
+  if (Number.isNaN(numericId)) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("tailored_resumes")
+    .select("*")
+    .eq("job_id", numericId)
+    .order("updated_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((row) => mapTailoredResume(row));
 }
 
 export async function getResumeTemplateById(id: number): Promise<ResumeTemplate | null> {

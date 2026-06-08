@@ -65,6 +65,19 @@ export type ResumeTemplate = {
   updatedAt: string;
 };
 
+export type TailoredResume = {
+  id: number;
+  jobId: number | null;
+  resumeTemplateId: number | null;
+  status: "draft" | "reviewed" | "approved" | "rejected" | "stale";
+  tailoredText: string;
+  tailoringNotes: string;
+  keywordCoverage: Record<string, unknown>;
+  matchScore: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type UserProfileRow = {
   id: string;
   name: string | null;
@@ -114,6 +127,19 @@ export type ResumeTemplateRow = {
   template_json: unknown;
   upload_source: string | null;
   is_default: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type TailoredResumeRow = {
+  id: number;
+  job_id: number | null;
+  resume_template_id: number | null;
+  status: string | null;
+  tailored_text: string;
+  tailoring_notes: string | null;
+  keyword_coverage: unknown;
+  match_score: number | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -217,6 +243,27 @@ export type Database = {
             columns: ["profile_id"];
             isOneToOne: false;
             referencedRelation: "user_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      tailored_resumes: {
+        Row: TailoredResumeRow;
+        Insert: Partial<TailoredResumeRow>;
+        Update: Partial<TailoredResumeRow>;
+        Relationships: [
+          {
+            foreignKeyName: "tailored_resumes_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tailored_resumes_resume_template_id_fkey";
+            columns: ["resume_template_id"];
+            isOneToOne: false;
+            referencedRelation: "resume_templates";
             referencedColumns: ["id"];
           },
         ];
@@ -478,6 +525,33 @@ export function mapResumeTemplate(row: ResumeTemplateRow): ResumeTemplate {
     templateJson: parseJsonObject(row.template_json),
     uploadSource: row.upload_source === "manual" ? "manual" : "docx",
     isDefault: row.is_default ?? false,
+    createdAt: toISOStringOrEmpty(row.created_at),
+    updatedAt: toISOStringOrEmpty(row.updated_at),
+  };
+}
+
+export function mapTailoredResume(row: TailoredResumeRow): TailoredResume {
+  const allowedStatus: TailoredResume["status"][] = [
+    "draft",
+    "reviewed",
+    "approved",
+    "rejected",
+    "stale",
+  ];
+
+  const mappedStatus = allowedStatus.includes((row.status ?? "") as TailoredResume["status"])
+    ? (row.status as TailoredResume["status"])
+    : "draft";
+
+  return {
+    id: row.id,
+    jobId: row.job_id,
+    resumeTemplateId: row.resume_template_id,
+    status: mappedStatus,
+    tailoredText: row.tailored_text ?? "",
+    tailoringNotes: row.tailoring_notes ?? "",
+    keywordCoverage: parseJsonObject(row.keyword_coverage),
+    matchScore: row.match_score,
     createdAt: toISOStringOrEmpty(row.created_at),
     updatedAt: toISOStringOrEmpty(row.updated_at),
   };

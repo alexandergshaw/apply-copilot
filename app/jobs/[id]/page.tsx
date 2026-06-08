@@ -3,11 +3,15 @@ import { notFound } from "next/navigation";
 import { JobActions } from "@/components/JobActions";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AutoApplyControls } from "@/components/jobs/AutoApplyControls";
+import { TailoredResumePanel } from "@/components/jobs/TailoredResumePanel";
 import type { AutoApplyRun } from "@/lib/mock-data";
 import {
   getAutoApplyRuns,
   getDefaultResumeTemplateForProfile,
   getJob,
+  getJobSourceId,
+  getResumeTemplates,
+  getTailoredResumesForJob,
   getUserProfile,
 } from "@/lib/queries";
 
@@ -17,15 +21,19 @@ type JobDetailsProps = {
 
 export default async function JobDetailsPage({ params }: JobDetailsProps) {
   const { id } = await params;
-  const [job, autoApplyRuns, profile] = await Promise.all([
+  const [job, autoApplyRuns, profile, templates, tailoredResumes, jobSourceId] = await Promise.all([
     getJob(id),
     getAutoApplyRuns(id),
     getUserProfile(),
+    getResumeTemplates(),
+    getTailoredResumesForJob(id),
+    getJobSourceId(id),
   ]);
 
   const defaultTemplate = profile
     ? await getDefaultResumeTemplateForProfile(profile.id)
     : null;
+  const isManualImported = jobSourceId === null;
 
   if (!job) {
     notFound();
@@ -102,6 +110,14 @@ export default async function JobDetailsPage({ params }: JobDetailsProps) {
           </p>
         </div>
       </article>
+
+      <TailoredResumePanel
+        jobId={job.id}
+        isManualImported={isManualImported}
+        templates={templates}
+        tailoredResumes={tailoredResumes}
+        defaultTemplateId={defaultTemplate?.id ?? null}
+      />
 
       {autoApplyRuns.length > 0 ? (
         <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
