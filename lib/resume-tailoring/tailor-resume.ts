@@ -76,7 +76,10 @@ export async function tailorResume(input: ResumeTailoringInput): Promise<ResumeT
     usableText,
   ].join("\n");
 
-  const outputDocxBuffer = await createTailoredResumeDocx({ tailoredText });
+  const outputDocxBuffer = await createTailoredResumeDocx({
+    sourceDocxBuffer: input.sourceDocxBuffer,
+    tailoredText,
+  });
 
   return {
     tailoredText,

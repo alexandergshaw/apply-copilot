@@ -1,6 +1,8 @@
-import { Document, Packer, Paragraph } from "docx";
+import { Document, HeadingLevel, Packer, Paragraph } from "docx";
+import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 
+import { createTailoredResumeDocx } from "./docx-writer";
 import { extractTextFromDocx } from "./docx-reader";
 import { getUsableResumeText, tailorResume } from "./tailor-resume";
 import type { ResumeTailoringInput } from "./types";
@@ -10,7 +12,16 @@ async function createDocxBuffer(paragraphs: string[]): Promise<Buffer> {
     sections: [
       {
         properties: {},
-        children: paragraphs.map((text) => new Paragraph(text)),
+        children: paragraphs.map((text, index) =>
+          new Paragraph(
+            index === 0
+              ? {
+                  text,
+                  heading: HeadingLevel.HEADING_1,
+                }
+              : text,
+          ),
+        ),
       },
     ],
   });
@@ -128,5 +139,36 @@ describe("tailorResume", () => {
       jobTitle: "Senior Product Manager",
       company: "Acme/Cloud",
     });
+  });
+});
+
+describe("createTailoredResumeDocx", () => {
+  it("preserves original styles.xml while inserting tailored content", async () => {
+    const sourceDocx = await createDocxBuffer(["Original Heading", "Original summary"]);
+    const sourceZip = await JSZip.loadAsync(sourceDocx);
+    const sourceStyles = await sourceZip.file("word/styles.xml")?.async("string");
+
+    const output = await createTailoredResumeDocx({
+      sourceDocxBuffer: sourceDocx,
+      tailoredText: "Tailored for Senior Product Manager at Acme/Cloud\n\nUpdated summary",
+    });
+
+    const outputZip = await JSZip.loadAsync(output);
+    const outputStyles = await outputZip.file("word/styles.xml")?.async("string");
+    const outputDocument = await outputZip.file("word/document.xml")?.async("string");
+
+    expect(sourceStyles).toBeDefined();
+    expect(outputStyles).toBe(sourceStyles);
+    expect(outputDocument).toContain("Tailored for Senior Product Manager at Acme/Cloud");
+    expect(outputDocument).toContain("Updated summary");
+  });
+
+  it("throws a readable error when source buffer is not a DOCX package", async () => {
+    await expect(
+      createTailoredResumeDocx({
+        sourceDocxBuffer: Buffer.from("not-a-docx"),
+        tailoredText: "Tailored text",
+      }),
+    ).rejects.toThrow("Failed to read source DOCX package:");
   });
 });
