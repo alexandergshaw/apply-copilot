@@ -4,7 +4,12 @@ import { JobActions } from "@/components/JobActions";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AutoApplyControls } from "@/components/jobs/AutoApplyControls";
 import type { AutoApplyRun } from "@/lib/mock-data";
-import { getAutoApplyRuns, getJob } from "@/lib/queries";
+import {
+  getAutoApplyRuns,
+  getDefaultResumeVersionForProfile,
+  getJob,
+  getUserProfile,
+} from "@/lib/queries";
 
 type JobDetailsProps = {
   params: Promise<{ id: string }>;
@@ -12,7 +17,15 @@ type JobDetailsProps = {
 
 export default async function JobDetailsPage({ params }: JobDetailsProps) {
   const { id } = await params;
-  const [job, autoApplyRuns] = await Promise.all([getJob(id), getAutoApplyRuns(id)]);
+  const [job, autoApplyRuns, profile] = await Promise.all([
+    getJob(id),
+    getAutoApplyRuns(id),
+    getUserProfile(),
+  ]);
+
+  const defaultResume = profile
+    ? await getDefaultResumeVersionForProfile(profile.id)
+    : null;
 
   if (!job) {
     notFound();
@@ -78,6 +91,15 @@ export default async function JobDetailsPage({ params }: JobDetailsProps) {
 
         <div className="mt-4">
           <AutoApplyControls jobId={job.id} autoApplyEnabled={job.autoApplyEnabled} />
+        </div>
+
+        <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <p className="font-medium text-slate-900">Default resume for future packet generation</p>
+          <p className="mt-1">
+            {defaultResume
+              ? `${defaultResume.name}${defaultResume.targetRole ? ` (${defaultResume.targetRole})` : ""}`
+              : "No default resume selected yet. Set one on the Resumes page."}
+          </p>
         </div>
       </article>
 

@@ -1,8 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL, isSupabaseConfigured } from "@/lib/supabase/config";
+import type { Database } from "@/lib/supabase/types";
 
-let browserClient: SupabaseClient | null = null;
+let browserClient: SupabaseClient<Database> | null = null;
 
 /**
  * Returns a memoized Supabase client for use in the browser.
@@ -10,13 +11,13 @@ let browserClient: SupabaseClient | null = null;
  * Returns `null` when the Supabase environment variables are not configured,
  * allowing callers to fall back to mock data.
  */
-export function getSupabaseBrowserClient(): SupabaseClient | null {
+export function getSupabaseBrowserClient(): SupabaseClient<Database> | null {
   if (!isSupabaseConfigured()) {
     return null;
   }
 
   if (!browserClient) {
-    browserClient = createClient(SUPABASE_URL as string, SUPABASE_ANON_KEY as string);
+    browserClient = createClient<Database>(SUPABASE_URL as string, SUPABASE_ANON_KEY as string);
   }
 
   return browserClient;

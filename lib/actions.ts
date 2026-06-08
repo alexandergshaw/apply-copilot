@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 
 import type { Profile, SourceType } from "@/lib/mock-data";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { profileToRow } from "@/lib/supabase/types";
+
+function toList(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
 
 export type ActionResult = { ok: boolean; message?: string };
 
@@ -37,7 +43,16 @@ export async function updateProfile(
     return NOT_CONFIGURED;
   }
 
-  const row = profileToRow(profile);
+  const salary = Number.parseInt(profile.minimumSalary, 10);
+  const row = {
+    name: profile.name,
+    target_titles: toList(profile.targetTitles),
+    target_locations: toList(profile.targetLocations),
+    min_salary: Number.isNaN(salary) ? null : salary,
+    remote_preference: profile.remotePreference,
+    skills: toList(profile.skills),
+    resume_text: profile.resumeText,
+  };
   const { error } = profileId
     ? await supabase.from("user_profiles").update(row).eq("id", profileId)
     : await supabase.from("user_profiles").insert(row);

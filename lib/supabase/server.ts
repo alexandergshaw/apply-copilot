@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL, isSupabaseConfigured } from "@/lib/supabase/config";
+import type { Database } from "@/lib/supabase/types";
 
 /**
  * Creates a Supabase client for use on the server (server components and
@@ -10,12 +11,12 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL, isSupabaseConfigured } from "@/lib/sup
  * required. Returns `null` when the Supabase environment variables are not
  * configured, allowing callers to fall back to mock data.
  */
-export function getSupabaseServerClient(): SupabaseClient | null {
+export function getSupabaseServerClient(): SupabaseClient<Database> | null {
   if (!isSupabaseConfigured()) {
     return null;
   }
 
-  return createClient(SUPABASE_URL as string, SUPABASE_ANON_KEY as string, {
+  return createClient<Database>(SUPABASE_URL as string, SUPABASE_ANON_KEY as string, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,

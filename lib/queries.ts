@@ -3,12 +3,10 @@ import {
   autoApplyRuns as mockAutoApplyRuns,
   jobSources as mockJobSources,
   jobs as mockJobs,
-  profile as mockProfile,
   type Application,
   type AutoApplyRun,
   type Job,
   type JobSource,
-  type Profile,
 } from "@/lib/mock-data";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -16,7 +14,10 @@ import {
   mapAutoApplyRun,
   mapJob,
   mapJobSource,
-  mapProfile,
+  mapResumeVersion,
+  mapUserProfile,
+  type ResumeVersion,
+  type UserProfile,
 } from "@/lib/supabase/types";
 
 /**
@@ -86,10 +87,10 @@ export async function getApplications(): Promise<Application[]> {
   return data.map((row) => mapApplication(row));
 }
 
-export async function getProfile(): Promise<Profile> {
+export async function getUserProfile(): Promise<UserProfile | null> {
   const supabase = getSupabaseServerClient();
   if (!supabase) {
-    return mockProfile;
+    return null;
   }
 
   const { data, error } = await supabase
@@ -100,10 +101,10 @@ export async function getProfile(): Promise<Profile> {
     .maybeSingle();
 
   if (error || !data) {
-    return mockProfile;
+    return null;
   }
 
-  return mapProfile(data);
+  return mapUserProfile(data);
 }
 
 export async function getProfileId(): Promise<string | null> {
@@ -124,6 +125,67 @@ export async function getProfileId(): Promise<string | null> {
   }
 
   return data.id;
+}
+
+export async function getResumeVersions(): Promise<ResumeVersion[]> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("resume_versions")
+    .select("*")
+    .order("updated_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((row) => mapResumeVersion(row));
+}
+
+export async function getResumeVersionById(id: number): Promise<ResumeVersion | null> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("resume_versions")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapResumeVersion(data);
+}
+
+export async function getDefaultResumeVersionForProfile(
+  profileId: string,
+): Promise<ResumeVersion | null> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("resume_versions")
+    .select("*")
+    .eq("profile_id", profileId)
+    .eq("is_default", true)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapResumeVersion(data);
 }
 
 export async function getJobSources(): Promise<JobSource[]> {

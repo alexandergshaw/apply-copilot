@@ -1,5 +1,5 @@
 // Database row types matching supabase/migrations and helpers to map Supabase
-// rows onto the UI-facing types defined in lib/mock-data.
+// rows onto UI-facing domain types.
 
 import type {
   Application,
@@ -9,19 +9,79 @@ import type {
   Job,
   JobSource,
   JobStatus,
-  Profile,
   SourceType,
 } from "@/lib/mock-data";
+
+export type UserProfile = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+  linkedinUrl: string;
+  portfolioUrl: string;
+  githubUrl: string;
+  targetTitles: string[];
+  targetLocations: string[];
+  minSalary: number | null;
+  remotePreference: string;
+  skills: string[];
+  resumeText: string;
+  summary: string;
+  workHistory: unknown[];
+  education: unknown[];
+  certifications: unknown[];
+  projects: unknown[];
+  preferences: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ResumeVersion = {
+  id: number;
+  profileId: string;
+  name: string;
+  targetRole: string;
+  resumeText: string;
+  resumeJson: Record<string, unknown>;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type UserProfileRow = {
   id: string;
   name: string | null;
+  email: string | null;
+  phone: string | null;
+  location: string | null;
+  linkedin_url: string | null;
+  portfolio_url: string | null;
+  github_url: string | null;
   target_titles: string[] | null;
   target_locations: string[] | null;
   min_salary: number | null;
   remote_preference: string | null;
   skills: string[] | null;
   resume_text: string | null;
+  summary: string | null;
+  work_history: unknown;
+  education: unknown;
+  certifications: unknown;
+  projects: unknown;
+  preferences: unknown;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type ResumeVersionRow = {
+  id: number;
+  profile_id: string;
+  name: string;
+  target_role: string | null;
+  resume_text: string;
+  resume_json: unknown;
+  is_default: boolean | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -98,47 +158,109 @@ export type Database = {
         Row: UserProfileRow;
         Insert: Partial<UserProfileRow>;
         Update: Partial<UserProfileRow>;
+        Relationships: [];
+      };
+      resume_versions: {
+        Row: ResumeVersionRow;
+        Insert: Partial<ResumeVersionRow>;
+        Update: Partial<ResumeVersionRow>;
+        Relationships: [
+          {
+            foreignKeyName: "resume_versions_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "user_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       job_sources: {
         Row: JobSourceRow;
         Insert: Partial<JobSourceRow>;
         Update: Partial<JobSourceRow>;
+        Relationships: [];
       };
       jobs: {
         Row: JobRow;
         Insert: Partial<JobRow>;
         Update: Partial<JobRow>;
+        Relationships: [
+          {
+            foreignKeyName: "jobs_source_id_fkey";
+            columns: ["source_id"];
+            isOneToOne: false;
+            referencedRelation: "job_sources";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       application_packets: {
         Row: ApplicationPacketRow;
         Insert: Partial<ApplicationPacketRow>;
         Update: Partial<ApplicationPacketRow>;
+        Relationships: [
+          {
+            foreignKeyName: "application_packets_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       applications: {
         Row: ApplicationRow;
         Insert: Partial<ApplicationRow>;
         Update: Partial<ApplicationRow>;
+        Relationships: [
+          {
+            foreignKeyName: "applications_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "applications_packet_id_fkey";
+            columns: ["packet_id"];
+            isOneToOne: false;
+            referencedRelation: "application_packets";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       auto_apply_runs: {
         Row: AutoApplyRunRow;
         Insert: Partial<AutoApplyRunRow>;
         Update: Partial<AutoApplyRunRow>;
+        Relationships: [
+          {
+            foreignKeyName: "auto_apply_runs_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+        ];
       };
+    };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      [_ in never]: never;
+    };
+    Enums: {
+      [_ in never]: never;
+    };
+    CompositeTypes: {
+      [_ in never]: never;
     };
   };
 };
 
-// --- Mapping helpers -------------------------------------------------------
-
 function toListString(values: string[] | null | undefined): string {
   return (values ?? []).join(", ");
-}
-
-function fromListString(value: string): string[] {
-  return value
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
 }
 
 const JOB_STATUSES: JobStatus[] = ["new", "review", "applied", "rejected"];
@@ -193,8 +315,40 @@ function mapSourceType(sourceType: string | null | undefined): SourceType {
     : "job board";
 }
 
-function mapRemotePreference(value: string | null | undefined): Profile["remotePreference"] {
-  return value === "hybrid" || value === "onsite" ? value : "remote";
+function parseJsonArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+function parseJsonObject(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  return {};
 }
 
 function parseShortAnswers(value: unknown): string[] {
@@ -216,7 +370,6 @@ function toDateString(value: string | null | undefined): string {
   if (!value) {
     return "";
   }
-  // Normalize ISO timestamps to YYYY-MM-DD for display parity with mock data.
   return value.slice(0, 10);
 }
 
@@ -224,29 +377,44 @@ function toISOStringOrEmpty(value: string | null | undefined): string {
   return value ?? "";
 }
 
-export function mapProfile(row: UserProfileRow): Profile {
+export function mapUserProfile(row: UserProfileRow): UserProfile {
   return {
+    id: row.id,
     name: row.name ?? "",
-    targetTitles: toListString(row.target_titles),
-    targetLocations: toListString(row.target_locations),
-    minimumSalary: row.min_salary != null ? String(row.min_salary) : "",
-    remotePreference: mapRemotePreference(row.remote_preference),
-    skills: toListString(row.skills),
+    email: row.email ?? "",
+    phone: row.phone ?? "",
+    location: row.location ?? "",
+    linkedinUrl: row.linkedin_url ?? "",
+    portfolioUrl: row.portfolio_url ?? "",
+    githubUrl: row.github_url ?? "",
+    targetTitles: row.target_titles ?? [],
+    targetLocations: row.target_locations ?? [],
+    minSalary: row.min_salary,
+    remotePreference: row.remote_preference ?? "remote",
+    skills: row.skills ?? [],
     resumeText: row.resume_text ?? "",
+    summary: row.summary ?? "",
+    workHistory: parseJsonArray(row.work_history),
+    education: parseJsonArray(row.education),
+    certifications: parseJsonArray(row.certifications),
+    projects: parseJsonArray(row.projects),
+    preferences: parseJsonObject(row.preferences),
+    createdAt: toISOStringOrEmpty(row.created_at),
+    updatedAt: toISOStringOrEmpty(row.updated_at),
   };
 }
 
-export function profileToRow(profile: Profile): Partial<UserProfileRow> {
-  const salary = Number.parseInt(profile.minimumSalary, 10);
-
+export function mapResumeVersion(row: ResumeVersionRow): ResumeVersion {
   return {
-    name: profile.name,
-    target_titles: fromListString(profile.targetTitles),
-    target_locations: fromListString(profile.targetLocations),
-    min_salary: Number.isNaN(salary) ? null : salary,
-    remote_preference: profile.remotePreference,
-    skills: fromListString(profile.skills),
-    resume_text: profile.resumeText,
+    id: row.id,
+    profileId: row.profile_id,
+    name: row.name,
+    targetRole: row.target_role ?? "",
+    resumeText: row.resume_text,
+    resumeJson: parseJsonObject(row.resume_json),
+    isDefault: row.is_default ?? false,
+    createdAt: toISOStringOrEmpty(row.created_at),
+    updatedAt: toISOStringOrEmpty(row.updated_at),
   };
 }
 
@@ -325,4 +493,19 @@ export function mapAutoApplyRun(row: AutoApplyRunRow): AutoApplyRun {
     errorMessage: row.error_message ?? "",
     createdAt: toISOStringOrEmpty(row.created_at),
   };
+}
+
+export function toCommaSeparated(values: string[]): string {
+  return values.join(", ");
+}
+
+export function toProfileSummary(profile: UserProfile): string {
+  return [
+    profile.name,
+    profile.email,
+    toListString(profile.skills),
+    profile.summary,
+  ]
+    .filter(Boolean)
+    .join(" | ");
 }
