@@ -1,7 +1,11 @@
 import { SourceForm } from "@/components/SourceForm";
-import { jobSources } from "@/lib/mock-data";
+import { getJobSources } from "@/lib/queries";
 
-export default function SourcesPage() {
+export const dynamic = "force-dynamic";
+
+export default async function SourcesPage() {
+  const jobSources = await getJobSources();
+
   return (
     <section className="space-y-4">
       <div>

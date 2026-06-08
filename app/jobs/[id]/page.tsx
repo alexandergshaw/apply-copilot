@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 
+import { JobActions } from "@/components/JobActions";
 import { StatusBadge } from "@/components/StatusBadge";
-import { jobs } from "@/lib/mock-data";
+import { getJob } from "@/lib/queries";
 
 type JobDetailsProps = {
   params: Promise<{ id: string }>;
@@ -9,7 +10,7 @@ type JobDetailsProps = {
 
 export default async function JobDetailsPage({ params }: JobDetailsProps) {
   const { id } = await params;
-  const job = jobs.find((entry) => entry.id === id);
+  const job = await getJob(id);
 
   if (!job) {
     notFound();
@@ -28,20 +29,7 @@ export default async function JobDetailsPage({ params }: JobDetailsProps) {
 
         <p className="mt-4 text-sm leading-6 text-slate-700">{job.description}</p>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700" type="button">
-            Generate Packet
-          </button>
-          <button className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700" type="button">
-            Save
-          </button>
-          <button className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-700" type="button">
-            Reject
-          </button>
-          <button className="rounded-md border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700" type="button">
-            Mark Applied
-          </button>
-        </div>
+        <JobActions jobId={job.id} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

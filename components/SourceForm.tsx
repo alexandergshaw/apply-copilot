@@ -1,7 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 
+import {
+  createJobSource,
+  deleteJobSource,
+  updateJobSource,
+  type ActionResult,
+} from "@/lib/actions";
 import type { JobSource, SourceType } from "@/lib/mock-data";
 
 type SourceFormProps = {
@@ -25,32 +32,55 @@ const emptySource: SourceDraft = {
 };
 
 export function SourceForm({ initialSources }: SourceFormProps) {
-  const [sources, setSources] = useState(initialSources);
+  const router = useRouter();
   const [draft, setDraft] = useState<SourceDraft>(emptySource);
+  const [isPending, startTransition] = useTransition();
+  const [message, setMessage] = useState<string | null>(null);
+
+  const runAction = (action: () => Promise<ActionResult>, onSuccess?: () => void) => {
+    setMessage(null);
+    startTransition(async () => {
+      const result = await action();
+      if (result.ok) {
+        onSuccess?.();
+        router.refresh();
+      } else if (result.message) {
+        setMessage(result.message);
+      }
+    });
+  };
 
   const saveSource = () => {
     if (!draft.sourceName.trim() || !draft.url.trim()) {
       return;
     }
 
-    if (draft.id) {
-      setSources((current) => current.map((source) => (source.id === draft.id ? draft : source)));
-    } else {
-      setSources((current) => [...current, { ...draft, id: `source-${Date.now()}` }]);
-    }
+    const input = {
+      sourceName: draft.sourceName,
+      sourceType: draft.sourceType,
+      url: draft.url,
+      enabled: draft.enabled,
+    };
 
-    setDraft(emptySource);
+    runAction(
+      () => (draft.id ? updateJobSource(draft.id, input) : createJobSource(input)),
+      () => setDraft(emptySource),
+    );
   };
 
   const editSource = (source: JobSource) => {
     setDraft(source);
   };
 
-  const deleteSource = (id: string) => {
-    setSources((current) => current.filter((source) => source.id !== id));
-    if (draft.id === id) {
-      setDraft(emptySource);
-    }
+  const removeSource = (id: string) => {
+    runAction(
+      () => deleteJobSource(id),
+      () => {
+        if (draft.id === id) {
+          setDraft(emptySource);
+        }
+      },
+    );
   };
 
   return (
@@ -103,7 +133,12 @@ export function SourceForm({ initialSources }: SourceFormProps) {
         </div>
 
         <div className="mt-4 flex gap-2">
-          <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700" type="button" onClick={saveSource}>
+          <button
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-60"
+            type="button"
+            disabled={isPending}
+            onClick={saveSource}
+          >
             {draft.id ? "Update source" : "Add source"}
           </button>
           <button
@@ -114,6 +149,7 @@ export function SourceForm({ initialSources }: SourceFormProps) {
             Clear
           </button>
         </div>
+        {message ? <p className="mt-3 text-sm text-amber-700">{message}</p> : null}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -128,7 +164,7 @@ export function SourceForm({ initialSources }: SourceFormProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {sources.map((source) => (
+            {initialSources.map((source) => (
               <tr key={source.id}>
                 <td className="px-4 py-3 font-medium text-slate-900">{source.sourceName}</td>
                 <td className="px-4 py-3 capitalize text-slate-700">{source.sourceType}</td>
@@ -144,9 +180,10 @@ export function SourceForm({ initialSources }: SourceFormProps) {
                       Edit
                     </button>
                     <button
-                      className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700"
+                      className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 disabled:opacity-60"
                       type="button"
-                      onClick={() => deleteSource(source.id)}
+                      disabled={isPending}
+                      onClick={() => removeSource(source.id)}
                     >
                       Delete
                     </button>
