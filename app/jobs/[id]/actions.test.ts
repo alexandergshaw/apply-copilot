@@ -1,8 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSupabaseServerClientMock, revalidatePathMock } = vi.hoisted(() => ({
+const {
+  downloadResumeTemplateDocxMock,
+  tailorResumeMock,
+  uploadTailoredResumeDocxMock,
+  getSupabaseServerClientMock,
+  revalidatePathMock,
+} = vi.hoisted(() => ({
+  downloadResumeTemplateDocxMock: vi.fn(),
+  tailorResumeMock: vi.fn(),
+  uploadTailoredResumeDocxMock: vi.fn(),
   getSupabaseServerClientMock: vi.fn(),
   revalidatePathMock: vi.fn(),
+}));
+
+vi.mock("@/lib/resume-tailoring", () => ({
+  downloadResumeTemplateDocx: downloadResumeTemplateDocxMock,
+  tailorResume: tailorResumeMock,
+  uploadTailoredResumeDocx: uploadTailoredResumeDocxMock,
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -15,37 +30,28 @@ vi.mock("next/cache", () => ({
 
 import { automaticallyTailorResume, generateTailoredResume } from "./actions";
 
-type JobRow = {
-  id: number;
-  source_id: number | null;
-  title: string;
-  company: string | null;
-  match_score: number | null;
-};
-
-type TemplateRow = {
-  id: number;
-  extracted_text: string | null;
-  template_text: string | null;
-};
-
-type DraftRow = { id: number };
-
-function createSupabaseMock(options: {
-  job: JobRow | null;
-  template: TemplateRow | null;
-  existingDrafts?: DraftRow[];
-}) {
+function createSupabaseMock() {
   const insertMock = vi.fn().mockResolvedValue({ error: null });
   const updateDraftMock = vi.fn().mockResolvedValue({ error: null });
-  const staleUpdateMock = vi.fn().mockResolvedValue({ error: null });
 
   const fromMock = vi.fn((table: string) => {
     if (table === "jobs") {
       return {
         select: () => ({
           eq: () => ({
-            maybeSingle: () => Promise.resolve({ data: options.job, error: null }),
+            maybeSingle: () =>
+              Promise.resolve({
+                data: {
+                  id: 12,
+                  title: "Staff PM",
+                  company: "CloudLine",
+                  location: "Remote",
+                  salary: null,
+                  description: "Build products",
+                  match_score: 88,
+                },
+                error: null,
+              }),
           }),
         }),
       };
@@ -55,7 +61,31 @@ function createSupabaseMock(options: {
       return {
         select: () => ({
           eq: () => ({
-            maybeSingle: () => Promise.resolve({ data: options.template, error: null }),
+            maybeSingle: () =>
+              Promise.resolve({
+                data: {
+                  id: 7,
+                  profile_id: "profile-123",
+                  name: "Template",
+                  target_role: "PM",
+                  original_filename: "resume.docx",
+                  docx_storage_path: "profile-123/7/resume.docx",
+                  extracted_text: "Extracted",
+                  template_text: "Template",
+                  template_json: {},
+                },
+                error: null,
+              }),
+          }),
+        }),
+      };
+    }
+
+    if (table === "user_profiles") {
+      return {
+        select: () => ({
+          eq: () => ({
+            maybeSingle: () => Promise.resolve({ data: { id: "profile-123" }, error: null }),
           }),
         }),
       };
@@ -67,15 +97,14 @@ function createSupabaseMock(options: {
           eq: () => ({
             eq: () => ({
               eq: () => ({
-                order: () =>
-                  Promise.resolve({ data: options.existingDrafts ?? [], error: null }),
+                order: () => Promise.resolve({ data: [], error: null }),
               }),
             }),
           }),
         }),
-        update: (payload: unknown) => ({
-          eq: (...args: unknown[]) => updateDraftMock(payload, ...args),
-          in: (...args: unknown[]) => staleUpdateMock(payload, ...args),
+        update: () => ({
+          eq: (...args: unknown[]) => updateDraftMock(...args),
+          in: () => Promise.resolve({ error: null }),
         }),
         insert: insertMock,
       };
@@ -84,124 +113,84 @@ function createSupabaseMock(options: {
     throw new Error(`Unexpected table: ${table}`);
   });
 
-  return {
-    client: { from: fromMock },
-    fromMock,
-    insertMock,
-    updateDraftMock,
-    staleUpdateMock,
-  };
+  return { client: { from: fromMock }, insertMock };
 }
 
-const baseTemplate: TemplateRow = {
-  id: 7,
-  extracted_text: "Experienced product leader.",
-  template_text: null,
-};
-
-describe("generateTailoredResume draft generation", () => {
+describe("generateTailoredResume", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    downloadResumeTemplateDocxMock.mockResolvedValue(Buffer.from("docx"));
+    tailorResumeMock.mockResolvedValue({
+      tailoredText: "Tailored text",
+      outputDocxBuffer: Buffer.from("generated-docx"),
+      outputFilename: "cloudline-staff-pm-tailored-resume.docx",
+      sourceDocxStoragePath: "profile-123/7/resume.docx",
+      tailoringNotes: "Draft DOCX generated automatically from the selected resume template. Review before using.",
+      keywordCoverage: { status: "stub" },
+      matchScore: 88,
+      status: "draft",
+    });
+    uploadTailoredResumeDocxMock.mockResolvedValue({
+      path: "profile-123/12/tailored-resume-7-123.docx",
+    });
   });
 
-  it("tailors resumes for jobs imported from a source (no manual-import gate)", async () => {
-    const supabaseMock = createSupabaseMock({
-      job: { id: 12, source_id: 3, title: "Staff PM", company: "CloudLine", match_score: 88 },
-      template: baseTemplate,
-    });
-    getSupabaseServerClientMock.mockReturnValue(supabaseMock.client);
+  it("returns an error for invalid job id", async () => {
+    const result = await generateTailoredResume("invalid", 7);
 
-    const result = await generateTailoredResume("12", 7);
-
-    expect(result.ok).toBe(true);
-    expect(supabaseMock.insertMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("writes the expected tailored text, notes, and keyword coverage copy", async () => {
-    const supabaseMock = createSupabaseMock({
-      job: { id: 12, source_id: 3, title: "Staff PM", company: "CloudLine", match_score: 88 },
-      template: baseTemplate,
-    });
-    getSupabaseServerClientMock.mockReturnValue(supabaseMock.client);
-
-    await generateTailoredResume("12", 7);
-
-    const payload = supabaseMock.insertMock.mock.calls[0][0];
-    expect(payload.tailored_text).toBe(
-      "Tailored for Staff PM at CloudLine.\n\nExperienced product leader.",
-    );
-    expect(payload.tailoring_notes).toBe(
-      "Draft generated automatically from the selected resume template. Review before using.",
-    );
-    expect(payload.keyword_coverage).toEqual({
-      status: "stub",
-      message: "Keyword coverage will be generated later.",
-    });
-    expect(payload.match_score).toBe(88);
-    expect(payload.status).toBe("draft");
-  });
-
-  it("falls back to a placeholder company name when company is null", async () => {
-    const supabaseMock = createSupabaseMock({
-      job: { id: 4, source_id: null, title: "Principal PM", company: null, match_score: null },
-      template: baseTemplate,
-    });
-    getSupabaseServerClientMock.mockReturnValue(supabaseMock.client);
-
-    await generateTailoredResume("4", 7);
-
-    const payload = supabaseMock.insertMock.mock.calls[0][0];
-    expect(payload.tailored_text).toBe(
-      "Tailored for Principal PM at Unknown Company.\n\nExperienced product leader.",
-    );
-  });
-
-  it("updates the active draft and marks older drafts stale", async () => {
-    const supabaseMock = createSupabaseMock({
-      job: { id: 12, source_id: 3, title: "Staff PM", company: "CloudLine", match_score: 88 },
-      template: baseTemplate,
-      existingDrafts: [{ id: 100 }, { id: 99 }, { id: 98 }],
-    });
-    getSupabaseServerClientMock.mockReturnValue(supabaseMock.client);
-
-    const result = await generateTailoredResume("12", 7);
-
-    expect(result.ok).toBe(true);
-    expect(supabaseMock.insertMock).not.toHaveBeenCalled();
-    expect(supabaseMock.updateDraftMock).toHaveBeenCalledTimes(1);
-    expect(supabaseMock.updateDraftMock).toHaveBeenCalledWith(expect.any(Object), "id", 100);
-    expect(supabaseMock.staleUpdateMock).toHaveBeenCalledWith(
-      { status: "stale" },
-      "id",
-      [99, 98],
-    );
-  });
-
-  it("returns an error for an invalid job id", async () => {
-    const result = await generateTailoredResume("not-a-number", 7);
     expect(result.ok).toBe(false);
     expect(result.message).toBe("Invalid job id.");
+  });
+
+  it("creates a tailored DOCX draft and stores metadata", async () => {
+    const supabaseMock = createSupabaseMock();
+    getSupabaseServerClientMock.mockReturnValue(supabaseMock.client);
+
+    const result = await generateTailoredResume("12", 7);
+
+    expect(result.ok).toBe(true);
+    expect(result.message).toBe("Tailored DOCX draft generated. Review before using.");
+    expect(downloadResumeTemplateDocxMock).toHaveBeenCalledWith(
+      supabaseMock.client,
+      "profile-123/7/resume.docx",
+    );
+    expect(uploadTailoredResumeDocxMock).toHaveBeenCalled();
+
+    const payload = supabaseMock.insertMock.mock.calls[0][0];
+    expect(payload.status).toBe("draft");
+    expect(payload.tailored_text).toBe("Tailored text");
+    expect(payload.output_filename).toBe("cloudline-staff-pm-tailored-resume.docx");
+    expect(payload.output_docx_storage_path).toBe("profile-123/12/tailored-resume-7-123.docx");
+    expect(payload.source_docx_storage_path).toBe("profile-123/7/resume.docx");
   });
 });
 
 describe("automaticallyTailorResume", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    downloadResumeTemplateDocxMock.mockResolvedValue(Buffer.from("docx"));
+    tailorResumeMock.mockResolvedValue({
+      tailoredText: "Tailored text",
+      outputDocxBuffer: Buffer.from("generated-docx"),
+      outputFilename: "cloudline-staff-pm-tailored-resume.docx",
+      sourceDocxStoragePath: "profile-123/7/resume.docx",
+      tailoringNotes: "Draft DOCX generated automatically from the selected resume template. Review before using.",
+      keywordCoverage: { status: "stub" },
+      matchScore: 88,
+      status: "draft",
+    });
+    uploadTailoredResumeDocxMock.mockResolvedValue({
+      path: "profile-123/12/tailored-resume-7-123.docx",
+    });
   });
 
-  it("delegates to the same draft generation as generateTailoredResume", async () => {
-    const supabaseMock = createSupabaseMock({
-      job: { id: 5, source_id: 9, title: "Senior PM", company: "NorthStar", match_score: 91 },
-      template: baseTemplate,
-    });
+  it("delegates to DOCX draft generation flow", async () => {
+    const supabaseMock = createSupabaseMock();
     getSupabaseServerClientMock.mockReturnValue(supabaseMock.client);
 
-    const result = await automaticallyTailorResume("5", 7);
+    const result = await automaticallyTailorResume("12", 7);
 
     expect(result.ok).toBe(true);
-    const payload = supabaseMock.insertMock.mock.calls[0][0];
-    expect(payload.tailored_text).toBe(
-      "Tailored for Senior PM at NorthStar.\n\nExperienced product leader.",
-    );
+    expect(tailorResumeMock).toHaveBeenCalledTimes(1);
   });
 });

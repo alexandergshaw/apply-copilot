@@ -85,7 +85,7 @@ export function TailoredResumePanel({
     setMessage(null);
     startTransition(async () => {
       const result = await action();
-      setMessage(result.ok ? "Saved." : result.message ?? "Action failed.");
+      setMessage(result.message ?? (result.ok ? "Saved." : "Action failed."));
       if (result.ok) {
         router.refresh();
       }
@@ -157,6 +157,23 @@ export function TailoredResumePanel({
           <p>
             <span className="font-medium text-slate-900">Tailoring notes:</span>{" "}
             {currentTailoredResume.tailoringNotes || "-"}
+          </p>
+          <p>
+            <span className="font-medium text-slate-900">Output filename:</span>{" "}
+            {currentTailoredResume.outputFilename || "-"}
+          </p>
+          <p>
+            <span className="font-medium text-slate-900">Tailored DOCX:</span>{" "}
+            {currentTailoredResume.outputDocxStoragePath ? (
+              <a
+                href={`/jobs/${jobId}/tailored-resumes/${currentTailoredResume.id}/download`}
+                className="font-medium text-blue-700 underline hover:text-blue-800"
+              >
+                Download Tailored DOCX
+              </a>
+            ) : (
+              "Not generated"
+            )}
           </p>
           <div>
             <p className="font-medium text-slate-900">Keyword coverage</p>

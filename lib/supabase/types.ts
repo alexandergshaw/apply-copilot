@@ -74,6 +74,9 @@ export type TailoredResume = {
   tailoringNotes: string;
   keywordCoverage: Record<string, unknown>;
   matchScore: number | null;
+  outputFilename: string;
+  outputDocxStoragePath: string;
+  sourceDocxStoragePath: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -140,6 +143,9 @@ export type TailoredResumeRow = {
   tailoring_notes: string | null;
   keyword_coverage: unknown;
   match_score: number | null;
+  output_filename: string | null;
+  output_docx_storage_path: string | null;
+  source_docx_storage_path: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -552,6 +558,9 @@ export function mapTailoredResume(row: TailoredResumeRow): TailoredResume {
     tailoringNotes: row.tailoring_notes ?? "",
     keywordCoverage: parseJsonObject(row.keyword_coverage),
     matchScore: row.match_score,
+    outputFilename: row.output_filename ?? "",
+    outputDocxStoragePath: row.output_docx_storage_path ?? "",
+    sourceDocxStoragePath: row.source_docx_storage_path ?? "",
     createdAt: toISOStringOrEmpty(row.created_at),
     updatedAt: toISOStringOrEmpty(row.updated_at),
   };

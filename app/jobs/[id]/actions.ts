@@ -3,6 +3,11 @@
 import { revalidatePath } from "next/cache";
 
 import type { ActionResult } from "@/lib/actions";
+import {
+  downloadResumeTemplateDocx,
+  tailorResume,
+  uploadTailoredResumeDocx,
+} from "@/lib/resume-tailoring";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 function parseJobId(jobId: string): number | null {
@@ -34,7 +39,7 @@ async function upsertTailoredDraft(jobId: number, resumeTemplateId: number): Pro
 
   const { data: job, error: jobError } = await supabase
     .from("jobs")
-    .select("id, source_id, title, company, match_score")
+    .select("id, title, company, location, salary, description, match_score")
     .eq("id", jobId)
     .maybeSingle();
 
@@ -44,7 +49,9 @@ async function upsertTailoredDraft(jobId: number, resumeTemplateId: number): Pro
 
   const { data: template, error: templateError } = await supabase
     .from("resume_templates")
-    .select("id, extracted_text, template_text")
+    .select(
+      "id, profile_id, name, target_role, original_filename, docx_storage_path, extracted_text, template_text, template_json",
+    )
     .eq("id", resumeTemplateId)
     .maybeSingle();
 
@@ -52,24 +59,68 @@ async function upsertTailoredDraft(jobId: number, resumeTemplateId: number): Pro
     return { ok: false, message: templateError?.message ?? "Resume template not found." };
   }
 
-  const sourceText = (template.extracted_text || template.template_text || "").trim();
-  const companyName = job.company ?? "Unknown Company";
-  const tailoredText = `Tailored for ${job.title} at ${companyName}.\n\n${sourceText}`.trim();
+  if (!template.docx_storage_path) {
+    return {
+      ok: false,
+      message: "Selected resume template does not have a source DOCX file.",
+    };
+  }
 
-  const keywordCoverage = {
-    status: "stub",
-    message: "Keyword coverage will be generated later.",
-  };
+  const { data: profile } = await supabase
+    .from("user_profiles")
+    .select("*")
+    .eq("id", template.profile_id)
+    .maybeSingle();
+
+  let sourceDocxBuffer: Buffer;
+  try {
+    sourceDocxBuffer = await downloadResumeTemplateDocx(supabase, template.docx_storage_path);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to download source template DOCX.";
+    return { ok: false, message };
+  }
+
+  const tailoredResult = await tailorResume({
+    job,
+    resumeTemplate: template,
+    sourceDocxBuffer,
+    profile: profile ?? undefined,
+    mode: "stub",
+  }).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "Failed to tailor resume.";
+    return { error: message };
+  });
+
+  if ("error" in tailoredResult) {
+    return { ok: false, message: tailoredResult.error };
+  }
+
+  let uploadPath: string;
+  try {
+    const uploaded = await uploadTailoredResumeDocx(supabase, {
+      profileId: template.profile_id,
+      jobId: job.id,
+      resumeTemplateId: template.id,
+      outputFilename: tailoredResult.outputFilename,
+      outputDocxBuffer: tailoredResult.outputDocxBuffer,
+    });
+    uploadPath = uploaded.path;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to upload tailored DOCX.";
+    return { ok: false, message };
+  }
 
   const draftPayload = {
     job_id: job.id,
     resume_template_id: template.id,
-    status: "draft",
-    tailored_text: tailoredText,
-    tailoring_notes:
-      "Draft generated automatically from the selected resume template. Review before using.",
-    keyword_coverage: keywordCoverage,
-    match_score: job.match_score,
+    status: tailoredResult.status,
+    tailored_text: tailoredResult.tailoredText,
+    tailoring_notes: tailoredResult.tailoringNotes,
+    keyword_coverage: tailoredResult.keywordCoverage,
+    match_score: tailoredResult.matchScore,
+    source_docx_storage_path: tailoredResult.sourceDocxStoragePath,
+    output_docx_storage_path: uploadPath,
+    output_filename: tailoredResult.outputFilename,
   };
 
   const { data: existingDrafts, error: draftsError } = await supabase
@@ -108,7 +159,10 @@ async function upsertTailoredDraft(jobId: number, resumeTemplateId: number): Pro
 
   revalidatePath("/jobs");
   revalidatePath(`/jobs/${job.id}`);
-  return { ok: true };
+  return {
+    ok: true,
+    message: "Tailored DOCX draft generated. Review before using.",
+  };
 }
 
 export async function approveAutoApply(jobId: string): Promise<ActionResult> {
