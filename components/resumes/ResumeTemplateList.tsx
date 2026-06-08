@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useTransition } from "react";
 
-import { deleteResumeVersion, setDefaultResumeVersion } from "@/app/resumes/actions";
-import type { ResumeVersion } from "@/lib/supabase/types";
+import { deleteResumeTemplate, setDefaultResumeTemplate } from "@/app/resumes/actions";
+import type { ResumeTemplate } from "@/lib/supabase/types";
 
-type ResumeVersionListProps = {
-  resumes: ResumeVersion[];
+type ResumeTemplateListProps = {
+  templates: ResumeTemplate[];
 };
 
 function formatDateTime(value: string): string {
@@ -19,13 +19,17 @@ function formatDateTime(value: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-export function ResumeVersionList({ resumes }: ResumeVersionListProps) {
+function sourceLabel(source: ResumeTemplate["uploadSource"]): string {
+  return source === "manual" ? "Manual" : "DOCX Upload";
+}
+
+export function ResumeTemplateList({ templates }: ResumeTemplateListProps) {
   const [isPending, startTransition] = useTransition();
 
-  if (resumes.length === 0) {
+  if (templates.length === 0) {
     return (
       <section className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-        No resume versions yet. Create your first resume version below.
+        Upload your resume (.docx) to create your first template.
       </section>
     );
   }
@@ -37,37 +41,43 @@ export function ResumeVersionList({ resumes }: ResumeVersionListProps) {
           <thead className="bg-slate-50 text-left text-slate-600">
             <tr>
               <th className="px-3 py-2 font-semibold">Name</th>
+              <th className="px-3 py-2 font-semibold">Filename</th>
               <th className="px-3 py-2 font-semibold">Target Role</th>
+              <th className="px-3 py-2 font-semibold">Source</th>
               <th className="px-3 py-2 font-semibold">Default</th>
-              <th className="px-3 py-2 font-semibold">Created</th>
-              <th className="px-3 py-2 font-semibold">Updated</th>
+              <th className="px-3 py-2 font-semibold">Upload Date</th>
               <th className="px-3 py-2 font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {resumes.map((resume) => (
-              <tr key={resume.id}>
-                <td className="px-3 py-2 text-slate-900">{resume.name}</td>
-                <td className="px-3 py-2 text-slate-700">{resume.targetRole || "-"}</td>
-                <td className="px-3 py-2 text-slate-700">{resume.isDefault ? "Yes" : "No"}</td>
-                <td className="px-3 py-2 text-slate-700">{formatDateTime(resume.createdAt)}</td>
-                <td className="px-3 py-2 text-slate-700">{formatDateTime(resume.updatedAt)}</td>
+            {templates.map((template) => (
+              <tr key={template.id}>
+                <td className="px-3 py-2 text-slate-900">{template.name}</td>
+                <td className="px-3 py-2 text-slate-700">{template.originalFilename || "-"}</td>
+                <td className="px-3 py-2 text-slate-700">{template.targetRole || "-"}</td>
+                <td className="px-3 py-2">
+                  <span className="rounded-full border border-slate-300 px-2 py-1 text-xs text-slate-700">
+                    {sourceLabel(template.uploadSource)}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-slate-700">{template.isDefault ? "Yes" : "No"}</td>
+                <td className="px-3 py-2 text-slate-700">{formatDateTime(template.createdAt)}</td>
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap gap-2">
                     <Link
+                      href={`/resumes/${template.id}`}
                       className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                      href={`/resumes/${resume.id}`}
                     >
-                      Edit
+                      Manage
                     </Link>
-                    {!resume.isDefault ? (
+                    {!template.isDefault ? (
                       <button
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
                         type="button"
                         disabled={isPending}
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
                         onClick={() => {
                           startTransition(async () => {
-                            await setDefaultResumeVersion(resume.id);
+                            await setDefaultResumeTemplate(template.id);
                           });
                         }}
                       >
@@ -75,16 +85,15 @@ export function ResumeVersionList({ resumes }: ResumeVersionListProps) {
                       </button>
                     ) : null}
                     <button
-                      className="rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
                       type="button"
                       disabled={isPending}
+                      className="rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
                       onClick={() => {
-                        if (!window.confirm("Delete this resume version?")) {
+                        if (!window.confirm("Delete this resume template?")) {
                           return;
                         }
-
                         startTransition(async () => {
-                          await deleteResumeVersion(resume.id);
+                          await deleteResumeTemplate(template.id);
                         });
                       }}
                     >

@@ -6,7 +6,7 @@ import { AutoApplyControls } from "@/components/jobs/AutoApplyControls";
 import type { AutoApplyRun } from "@/lib/mock-data";
 import {
   getAutoApplyRuns,
-  getDefaultResumeVersionForProfile,
+  getDefaultResumeTemplateForProfile,
   getJob,
   getUserProfile,
 } from "@/lib/queries";
@@ -23,8 +23,8 @@ export default async function JobDetailsPage({ params }: JobDetailsProps) {
     getUserProfile(),
   ]);
 
-  const defaultResume = profile
-    ? await getDefaultResumeVersionForProfile(profile.id)
+  const defaultTemplate = profile
+    ? await getDefaultResumeTemplateForProfile(profile.id)
     : null;
 
   if (!job) {
@@ -94,11 +94,11 @@ export default async function JobDetailsPage({ params }: JobDetailsProps) {
         </div>
 
         <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-          <p className="font-medium text-slate-900">Default resume for future packet generation</p>
+          <p className="font-medium text-slate-900">Default resume template for future packet generation</p>
           <p className="mt-1">
-            {defaultResume
-              ? `${defaultResume.name}${defaultResume.targetRole ? ` (${defaultResume.targetRole})` : ""}`
-              : "No default resume selected yet. Set one on the Resumes page."}
+            {defaultTemplate
+              ? `${defaultTemplate.name}${defaultTemplate.targetRole ? ` (${defaultTemplate.targetRole})` : ""}`
+              : "No default template selected yet. Set one on the Resume Templates page."}
           </p>
         </div>
       </article>

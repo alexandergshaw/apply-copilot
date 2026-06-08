@@ -14,9 +14,9 @@ import {
   mapAutoApplyRun,
   mapJob,
   mapJobSource,
-  mapResumeVersion,
+  mapResumeTemplate,
   mapUserProfile,
-  type ResumeVersion,
+  type ResumeTemplate,
   type UserProfile,
 } from "@/lib/supabase/types";
 
@@ -127,14 +127,14 @@ export async function getProfileId(): Promise<string | null> {
   return data.id;
 }
 
-export async function getResumeVersions(): Promise<ResumeVersion[]> {
+export async function getResumeTemplates(): Promise<ResumeTemplate[]> {
   const supabase = getSupabaseServerClient();
   if (!supabase) {
     return [];
   }
 
   const { data, error } = await supabase
-    .from("resume_versions")
+    .from("resume_templates")
     .select("*")
     .order("updated_at", { ascending: false });
 
@@ -142,17 +142,17 @@ export async function getResumeVersions(): Promise<ResumeVersion[]> {
     return [];
   }
 
-  return data.map((row) => mapResumeVersion(row));
+  return data.map((row) => mapResumeTemplate(row));
 }
 
-export async function getResumeVersionById(id: number): Promise<ResumeVersion | null> {
+export async function getResumeTemplateById(id: number): Promise<ResumeTemplate | null> {
   const supabase = getSupabaseServerClient();
   if (!supabase) {
     return null;
   }
 
   const { data, error } = await supabase
-    .from("resume_versions")
+    .from("resume_templates")
     .select("*")
     .eq("id", id)
     .maybeSingle();
@@ -161,19 +161,19 @@ export async function getResumeVersionById(id: number): Promise<ResumeVersion | 
     return null;
   }
 
-  return mapResumeVersion(data);
+  return mapResumeTemplate(data);
 }
 
-export async function getDefaultResumeVersionForProfile(
+export async function getDefaultResumeTemplateForProfile(
   profileId: string,
-): Promise<ResumeVersion | null> {
+): Promise<ResumeTemplate | null> {
   const supabase = getSupabaseServerClient();
   if (!supabase) {
     return null;
   }
 
   const { data, error } = await supabase
-    .from("resume_versions")
+    .from("resume_templates")
     .select("*")
     .eq("profile_id", profileId)
     .eq("is_default", true)
@@ -185,7 +185,7 @@ export async function getDefaultResumeVersionForProfile(
     return null;
   }
 
-  return mapResumeVersion(data);
+  return mapResumeTemplate(data);
 }
 
 export async function getJobSources(): Promise<JobSource[]> {

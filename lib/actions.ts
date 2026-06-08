@@ -251,3 +251,70 @@ export async function createApplicationPacketPlaceholder(jobId: string): Promise
   revalidateJob(jobId);
   return { ok: true };
 }
+
+export async function tailorResumeToManualJob(
+  jobId: string,
+  resumeTemplateId: number,
+): Promise<ActionResult> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return NOT_CONFIGURED;
+  }
+
+  const numericId = parseJobId(jobId);
+  if (numericId == null) {
+    return { ok: false, message: "Invalid job id." };
+  }
+
+  const { data: job, error: jobError } = await supabase
+    .from("jobs")
+    .select("title, company")
+    .eq("id", numericId)
+    .maybeSingle();
+
+  if (jobError || !job) {
+    return { ok: false, message: jobError?.message ?? "Job not found." };
+  }
+
+  const { data: template, error: templateError } = await supabase
+    .from("resume_templates")
+    .select("extracted_text, template_text")
+    .eq("id", resumeTemplateId)
+    .maybeSingle();
+
+  if (templateError || !template) {
+    return { ok: false, message: templateError?.message ?? "Resume template not found." };
+  }
+
+  const sourceText = (template.extracted_text || template.template_text || "").trim();
+  const companyName = job.company ?? "Unknown Company";
+  const tailoredResume = `Tailored for ${job.title} at ${companyName}.\n\n${sourceText}`.trim();
+
+  const { data: packet } = await supabase
+    .from("application_packets")
+    .select("id")
+    .eq("job_id", numericId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const payload = {
+    tailored_resume: tailoredResume,
+    tailoring_notes:
+      "Generated from uploaded .docx resume template. Replace with LLM generation later.",
+  };
+
+  const { error } = packet
+    ? await supabase.from("application_packets").update(payload).eq("id", packet.id)
+    : await supabase.from("application_packets").insert({
+        job_id: numericId,
+        ...payload,
+      });
+
+  if (error) {
+    return { ok: false, message: mapRlsErrorMessage(error.message, error.code) };
+  }
+
+  revalidateJob(jobId);
+  return { ok: true };
+}

@@ -49,6 +49,22 @@ export type ResumeVersion = {
   updatedAt: string;
 };
 
+export type ResumeTemplate = {
+  id: number;
+  profileId: string;
+  name: string;
+  targetRole: string;
+  originalFilename: string;
+  docxStoragePath: string;
+  extractedText: string;
+  templateText: string;
+  templateJson: Record<string, unknown>;
+  uploadSource: "docx" | "manual";
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type UserProfileRow = {
   id: string;
   name: string | null;
@@ -81,6 +97,22 @@ export type ResumeVersionRow = {
   target_role: string | null;
   resume_text: string;
   resume_json: unknown;
+  is_default: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type ResumeTemplateRow = {
+  id: number;
+  profile_id: string;
+  name: string;
+  target_role: string | null;
+  original_filename: string | null;
+  docx_storage_path: string | null;
+  extracted_text: string | null;
+  template_text: string | null;
+  template_json: unknown;
+  upload_source: string | null;
   is_default: boolean | null;
   created_at: string | null;
   updated_at: string | null;
@@ -132,6 +164,7 @@ export type ApplicationPacketRow = {
   id: number;
   job_id: number | null;
   tailored_resume: string | null;
+  tailoring_notes: string | null;
   cover_letter: string | null;
   short_answers: unknown;
   risk_notes: string | null;
@@ -167,6 +200,20 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "resume_versions_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "user_profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      resume_templates: {
+        Row: ResumeTemplateRow;
+        Insert: Partial<ResumeTemplateRow>;
+        Update: Partial<ResumeTemplateRow>;
+        Relationships: [
+          {
+            foreignKeyName: "resume_templates_profile_id_fkey";
             columns: ["profile_id"];
             isOneToOne: false;
             referencedRelation: "user_profiles";
@@ -412,6 +459,24 @@ export function mapResumeVersion(row: ResumeVersionRow): ResumeVersion {
     targetRole: row.target_role ?? "",
     resumeText: row.resume_text,
     resumeJson: parseJsonObject(row.resume_json),
+    isDefault: row.is_default ?? false,
+    createdAt: toISOStringOrEmpty(row.created_at),
+    updatedAt: toISOStringOrEmpty(row.updated_at),
+  };
+}
+
+export function mapResumeTemplate(row: ResumeTemplateRow): ResumeTemplate {
+  return {
+    id: row.id,
+    profileId: row.profile_id,
+    name: row.name,
+    targetRole: row.target_role ?? "",
+    originalFilename: row.original_filename ?? "",
+    docxStoragePath: row.docx_storage_path ?? "",
+    extractedText: row.extracted_text ?? "",
+    templateText: row.template_text ?? "",
+    templateJson: parseJsonObject(row.template_json),
+    uploadSource: row.upload_source === "manual" ? "manual" : "docx",
     isDefault: row.is_default ?? false,
     createdAt: toISOStringOrEmpty(row.created_at),
     updatedAt: toISOStringOrEmpty(row.updated_at),
