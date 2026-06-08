@@ -41,7 +41,19 @@ function extractJsonPayload(rawText: string): string {
     trimmed.match(/```json\s*([\s\S]*?)\s*```/i)
     ?? trimmed.match(/```\s*([\s\S]*?)\s*```/i);
 
-  return fencedMatch?.[1]?.trim() ?? trimmed;
+  const candidate = fencedMatch?.[1]?.trim() ?? trimmed;
+
+  // Fallback: if the model wrapped JSON in prose, slice from the first
+  // opening brace to the last closing brace.
+  if (!candidate.startsWith("{")) {
+    const firstBrace = candidate.indexOf("{");
+    const lastBrace = candidate.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      return candidate.slice(firstBrace, lastBrace + 1).trim();
+    }
+  }
+
+  return candidate;
 }
 
 function assertLlmOutputShape(value: unknown): asserts value is LlmResumeTailoringOutput {
@@ -90,6 +102,7 @@ export class GeminiResumeTailoringService implements LlmResumeTailoringService {
       const response = await ai.models.generateContent({
         model,
         contents: buildGeminiPrompt(input),
+        config: { responseMimeType: "application/json" },
       });
       rawText = response.text?.trim() ?? "";
     } catch (error) {
@@ -107,7 +120,8 @@ export class GeminiResumeTailoringService implements LlmResumeTailoringService {
     try {
       parsed = JSON.parse(jsonPayload);
     } catch {
-      throw new Error("Gemini response could not be parsed as JSON.");
+      const snippet = rawText.length > 300 ? `${rawText.slice(0, 300)}…` : rawText;
+      throw new Error(`Gemini response could not be parsed as JSON. Received: ${snippet}`);
     }
 
     assertLlmOutputShape(parsed);
