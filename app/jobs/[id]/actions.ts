@@ -34,22 +34,26 @@ function mapRlsErrorMessage(message: string, code?: string): string {
   return message;
 }
 
-function resolveTailoringMode(): { mode: ResumeTailoringMode; configError?: string } {
+function resolveTailoringMode(forcedMode?: ResumeTailoringMode): {
+  mode: ResumeTailoringMode;
+  configError?: string;
+} {
   const configuredMode = process.env.RESUME_TAILORING_MODE?.trim().toLowerCase();
+  const useLlm = forcedMode === "llm" || (!forcedMode && configuredMode === "llm");
 
-  if (configuredMode === "llm") {
+  if (useLlm) {
     if (!process.env.GEMINI_API_KEY?.trim()) {
       return {
         mode: "llm",
         configError:
-          "LLM resume tailoring is enabled, but Gemini is not configured. Set GEMINI_API_KEY or switch RESUME_TAILORING_MODE=stub.",
+          "AI resume tailoring requires Gemini, but it is not configured. Set GEMINI_API_KEY (and optional GEMINI_MODEL) to generate a tailored resume.",
       };
     }
 
     return { mode: "llm" };
   }
 
-  return { mode: "stub" };
+  return { mode: forcedMode ?? "stub" };
 }
 
 type TailorDraftResult = {
@@ -65,7 +69,11 @@ function isTailorDraftResult(result: ActionResult | TailorDraftResult): result i
   return result.ok === true && "tailoredResumeId" in result;
 }
 
-async function upsertTailoredDraft(jobId: number, resumeTemplateId: number): Promise<ActionResult | TailorDraftResult> {
+async function upsertTailoredDraft(
+  jobId: number,
+  resumeTemplateId: number,
+  forcedMode?: ResumeTailoringMode,
+): Promise<ActionResult | TailorDraftResult> {
   const supabase = getSupabaseServerClient();
   if (!supabase) {
     return {
@@ -117,7 +125,7 @@ async function upsertTailoredDraft(jobId: number, resumeTemplateId: number): Pro
     return { ok: false, message };
   }
 
-  const modeConfig = resolveTailoringMode();
+  const modeConfig = resolveTailoringMode(forcedMode);
   if (modeConfig.configError) {
     return { ok: false, message: modeConfig.configError };
   }
@@ -365,7 +373,7 @@ export async function tailorResumeForDownload(jobId: string): Promise<TailorResu
     return { ok: false, message: "No resume template found. Upload one first." };
   }
 
-  const result = await upsertTailoredDraft(numericJobId, selectedTemplateId);
+  const result = await upsertTailoredDraft(numericJobId, selectedTemplateId, "llm");
   if (!isTailorDraftResult(result)) {
     return result;
   }

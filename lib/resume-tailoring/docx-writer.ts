@@ -14,52 +14,100 @@ function xmlEscape(value: string): string {
     .replace(/'/g, "&apos;");
 }
 
-function extractParagraphProperties(documentXml: string): string {
-  const firstParagraphMatch = documentXml.match(/<w:p[\s\S]*?<\/w:p>/);
-  if (!firstParagraphMatch) {
-    return "";
-  }
-
-  const paragraphPropertiesMatch = firstParagraphMatch[0].match(/<w:pPr[\s\S]*?<\/w:pPr>/);
+/**
+ * Extracts the paragraph-level properties (`<w:pPr>`) from a single paragraph,
+ * preserving its style, indentation, spacing, numbering, and list formatting.
+ */
+function extractParagraphProperties(paragraphXml: string): string {
+  const paragraphPropertiesMatch = paragraphXml.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/);
   return paragraphPropertiesMatch?.[0] ?? "";
 }
 
-function buildParagraphXml(text: string, paragraphProperties: string): string {
-  const blocks = text
-    .split(/\n{2,}/)
-    .map((block) => block.trim())
-    .filter(Boolean);
+/**
+ * Extracts the run-level properties (`<w:rPr>`) from the first run in a
+ * paragraph, preserving font, size, weight, and color for replaced text.
+ */
+function extractFirstRunProperties(paragraphXml: string): string {
+  const firstRunMatch = paragraphXml.match(/<w:r\b[\s\S]*?<\/w:r>/);
+  if (!firstRunMatch) {
+    return "";
+  }
 
-  return blocks
-    .map((block) => {
-      const lines = block.split("\n");
-      const runs = lines
-        .map((line, index) => {
-          const escaped = xmlEscape(line);
-          const lineXml = `<w:r><w:t xml:space="preserve">${escaped}</w:t></w:r>`;
-          return index === 0 ? lineXml : `<w:r><w:br/></w:r>${lineXml}`;
-        })
-        .join("");
-
-      return `<w:p>${paragraphProperties}${runs}</w:p>`;
-    })
-    .join("");
+  const runPropertiesMatch = firstRunMatch[0].match(/<w:rPr\b[\s\S]*?<\/w:rPr>/);
+  return runPropertiesMatch?.[0] ?? "";
 }
 
-function insertTailoredParagraphs(documentXml: string, tailoredParagraphXml: string): string {
-  const bodyMatch = documentXml.match(/<w:body[\s\S]*?<\/w:body>/);
+/**
+ * Rebuilds a paragraph using the original paragraph/run properties so the
+ * tailored text inherits the template's exact formatting for that line.
+ */
+function buildParagraphFromTemplate(
+  text: string,
+  paragraphProperties: string,
+  runProperties: string,
+): string {
+  const escaped = xmlEscape(text);
+  const run = `<w:r>${runProperties}<w:t xml:space="preserve">${escaped}</w:t></w:r>`;
+  return `<w:p>${paragraphProperties}${run}</w:p>`;
+}
+
+/**
+ * Section-aware replacement: walks the original paragraphs in order and swaps
+ * their text content with the tailored lines, preserving each paragraph's
+ * formatting. Extra tailored lines reuse the last paragraph's style; unused
+ * original paragraphs are dropped so no source content leaks through.
+ */
+function replaceBodyContent(documentXml: string, tailoredText: string): string {
+  const bodyMatch = documentXml.match(/(<w:body\b[^>]*>)([\s\S]*)(<\/w:body>)/);
   if (!bodyMatch) {
     throw new Error("DOCX document body was not found.");
   }
 
-  const bodyXml = bodyMatch[0];
-  const sectPrMatch = bodyXml.match(/<w:sectPr[\s\S]*?<\/w:sectPr>/);
+  const [, bodyOpen, bodyInner, bodyClose] = bodyMatch;
 
-  const updatedBody = sectPrMatch
-    ? bodyXml.replace(sectPrMatch[0], `${tailoredParagraphXml}${sectPrMatch[0]}`)
-    : bodyXml.replace("</w:body>", `${tailoredParagraphXml}</w:body>`);
+  // Preserve a body-level <w:sectPr> (page size, margins, columns).
+  const trailingSectPrMatch = bodyInner.match(/<w:sectPr\b[\s\S]*?<\/w:sectPr>\s*$/);
+  const trailingSectPr = trailingSectPrMatch?.[0] ?? "";
+  const contentWithoutSectPr = trailingSectPr
+    ? bodyInner.slice(0, bodyInner.length - trailingSectPr.length)
+    : bodyInner;
 
-  return documentXml.replace(bodyXml, updatedBody);
+  const paragraphs = contentWithoutSectPr.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? [];
+
+  const lines = tailoredText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  // No paragraphs to template from: emit minimal paragraphs so output is valid.
+  if (paragraphs.length === 0) {
+    const fallback = lines.map((line) => buildParagraphFromTemplate(line, "", "")).join("");
+    return documentXml.replace(
+      bodyMatch[0],
+      `${bodyOpen}${fallback}${trailingSectPr}${bodyClose}`,
+    );
+  }
+
+  const lastParagraph = paragraphs[paragraphs.length - 1];
+  const lastParagraphProperties = extractParagraphProperties(lastParagraph);
+  const lastRunProperties = extractFirstRunProperties(lastParagraph);
+
+  const rebuiltParagraphs = lines.map((line, index) => {
+    const templateParagraph = paragraphs[index] ?? lastParagraph;
+    const paragraphProperties =
+      index < paragraphs.length
+        ? extractParagraphProperties(templateParagraph)
+        : lastParagraphProperties;
+    const runProperties =
+      index < paragraphs.length
+        ? extractFirstRunProperties(templateParagraph)
+        : lastRunProperties;
+
+    return buildParagraphFromTemplate(line, paragraphProperties, runProperties);
+  });
+
+  const rebuiltBody = `${bodyOpen}${rebuiltParagraphs.join("")}${trailingSectPr}${bodyClose}`;
+  return documentXml.replace(bodyMatch[0], rebuiltBody);
 }
 
 export async function createTailoredResumeDocx(
@@ -79,10 +127,10 @@ export async function createTailoredResumeDocx(
   }
 
   const documentXml = await documentEntry.async("string");
-  const paragraphProperties = extractParagraphProperties(documentXml);
-  const tailoredParagraphXml = buildParagraphXml(input.tailoredText, paragraphProperties);
-  const updatedDocumentXml = insertTailoredParagraphs(documentXml, tailoredParagraphXml);
+  const updatedDocumentXml = replaceBodyContent(documentXml, input.tailoredText);
 
+  // styles.xml, numbering.xml, theme/*, headers/footers, and section properties
+  // are intentionally left untouched so the template's formatting is preserved.
   zip.file("word/document.xml", updatedDocumentXml);
   return zip.generateAsync({ type: "nodebuffer" });
 }

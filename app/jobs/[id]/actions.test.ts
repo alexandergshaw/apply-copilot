@@ -203,7 +203,7 @@ describe("generateTailoredResume", () => {
 
     expect(result.ok).toBe(false);
     expect(result.message).toBe(
-      "LLM resume tailoring is enabled, but Gemini is not configured. Set GEMINI_API_KEY or switch RESUME_TAILORING_MODE=stub.",
+      "AI resume tailoring requires Gemini, but it is not configured. Set GEMINI_API_KEY (and optional GEMINI_MODEL) to generate a tailored resume.",
     );
   });
 });
@@ -247,7 +247,7 @@ describe("tailorResumeForDownload", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.RESUME_TAILORING_MODE;
-    delete process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = "test-gemini-key";
     getUserProfileMock.mockResolvedValue({ id: "profile-123" });
     getDefaultResumeTemplateForProfileMock.mockResolvedValue({ id: 7 });
     getResumeTemplatesMock.mockResolvedValue([{ id: 7 }]);
@@ -289,5 +289,18 @@ describe("tailorResumeForDownload", () => {
 
     expect(result.ok).toBe(false);
     expect(result.message).toBe("No resume template found. Upload one first.");
+  });
+
+  it("returns friendly error when Gemini is not configured", async () => {
+    const supabaseMock = createSupabaseMock();
+    getSupabaseServerClientMock.mockReturnValue(supabaseMock.client);
+    delete process.env.GEMINI_API_KEY;
+
+    const result = await tailorResumeForDownload("12");
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toBe(
+      "AI resume tailoring requires Gemini, but it is not configured. Set GEMINI_API_KEY (and optional GEMINI_MODEL) to generate a tailored resume.",
+    );
   });
 });
