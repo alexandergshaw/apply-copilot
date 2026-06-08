@@ -1,5 +1,15 @@
 export type JobStatus = "new" | "review" | "applied" | "rejected";
 
+export type AutoApplyStatus =
+  | "not_requested"
+  | "queued"
+  | "running"
+  | "needs_review"
+  | "submitted"
+  | "failed"
+  | "blocked"
+  | "canceled";
+
 export type Job = {
   id: string;
   company: string;
@@ -15,6 +25,20 @@ export type Job = {
   tailoredResumeDraft: string;
   coverLetterDraft: string;
   shortAnswerDrafts: string[];
+  autoApplyEnabled: boolean;
+  autoApplyStatus: AutoApplyStatus;
+  autoApplyApprovedAt: string;
+  autoApplyError: string;
+};
+
+export type AutoApplyRun = {
+  id: string;
+  jobId: string;
+  status: AutoApplyStatus;
+  startedAt: string;
+  finishedAt: string;
+  errorMessage: string;
+  createdAt: string;
 };
 
 export type ApplicationStatus = "draft" | "submitted" | "interview" | "offer" | "rejected";
@@ -73,6 +97,10 @@ export const jobs: Job[] = [
       "Why this role: mission and measurable impact in care delivery.",
       "Leadership style: context-first planning and rapid feedback loops.",
     ],
+    autoApplyEnabled: false,
+    autoApplyStatus: "not_requested",
+    autoApplyApprovedAt: "",
+    autoApplyError: "",
   },
   {
     id: "job-102",
@@ -97,6 +125,10 @@ export const jobs: Job[] = [
       "Greatest platform launch: analytics pipeline migration with zero downtime.",
       "AI governance: partner with legal/security early and measure model quality continually.",
     ],
+    autoApplyEnabled: false,
+    autoApplyStatus: "not_requested",
+    autoApplyApprovedAt: "",
+    autoApplyError: "",
   },
   {
     id: "job-103",
@@ -121,6 +153,10 @@ export const jobs: Job[] = [
       "Cross-functional execution example: launch across Product, Eng, Sales Enablement.",
       "Customer research approach: weekly customer interviews + usage instrumentation.",
     ],
+    autoApplyEnabled: false,
+    autoApplyStatus: "not_requested",
+    autoApplyApprovedAt: "",
+    autoApplyError: "",
   },
   {
     id: "job-104",
@@ -145,8 +181,14 @@ export const jobs: Job[] = [
       "Growth metric ownership examples.",
       "Pricing experiment framework with guardrails.",
     ],
+    autoApplyEnabled: false,
+    autoApplyStatus: "not_requested",
+    autoApplyApprovedAt: "",
+    autoApplyError: "",
   },
 ];
+
+export const autoApplyRuns: AutoApplyRun[] = [];
 
 export const applications: Application[] = [
   {

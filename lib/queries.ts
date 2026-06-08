@@ -1,9 +1,11 @@
 import {
   applications as mockApplications,
+  autoApplyRuns as mockAutoApplyRuns,
   jobSources as mockJobSources,
   jobs as mockJobs,
   profile as mockProfile,
   type Application,
+  type AutoApplyRun,
   type Job,
   type JobSource,
   type Profile,
@@ -11,6 +13,7 @@ import {
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import {
   mapApplication,
+  mapAutoApplyRun,
   mapJob,
   mapJobSource,
   mapProfile,
@@ -139,4 +142,29 @@ export async function getJobSources(): Promise<JobSource[]> {
   }
 
   return data.map((row) => mapJobSource(row));
+}
+
+export async function getAutoApplyRuns(jobId: string): Promise<AutoApplyRun[]> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return mockAutoApplyRuns.filter((run) => run.jobId === jobId);
+  }
+
+  const numericId = Number.parseInt(jobId, 10);
+  if (Number.isNaN(numericId)) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("auto_apply_runs")
+    .select("*")
+    .eq("job_id", numericId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((row) => mapAutoApplyRun(row));
 }
