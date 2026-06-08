@@ -121,13 +121,13 @@ function fromListString(value: string): string[] {
 const JOB_STATUSES: JobStatus[] = ["new", "review", "applied", "rejected"];
 
 export function mapJobStatus(status: string | null | undefined): JobStatus {
-  if (status === "found" || status == null) {
+  if (status === "found") {
     return "new";
   }
   if (status === "saved") {
     return "review";
   }
-  return (JOB_STATUSES as string[]).includes(status) ? (status as JobStatus) : "new";
+  return (JOB_STATUSES as string[]).includes(status ?? "") ? (status as JobStatus) : "new";
 }
 
 const APPLICATION_STATUSES: ApplicationStatus[] = [
@@ -139,10 +139,10 @@ const APPLICATION_STATUSES: ApplicationStatus[] = [
 ];
 
 export function mapApplicationStatus(status: string | null | undefined): ApplicationStatus {
-  if (status === "review" || status == null) {
+  if (status === "review") {
     return "draft";
   }
-  return (APPLICATION_STATUSES as string[]).includes(status)
+  return (APPLICATION_STATUSES as string[]).includes(status ?? "")
     ? (status as ApplicationStatus)
     : "draft";
 }
