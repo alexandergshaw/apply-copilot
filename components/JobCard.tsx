@@ -22,12 +22,30 @@ export function JobCard({ job }: JobCardProps) {
         <span>Match: {job.matchScore}%</span>
       </div>
       <p className="mt-4 text-sm text-slate-700">{job.description}</p>
-      <Link
-        className="mt-4 inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        href={`/jobs/${job.id}`}
-      >
-        View details
-      </Link>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Link
+          className="inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          href={`/jobs/${job.id}`}
+        >
+          View details
+        </Link>
+        <Link
+          className="inline-flex rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+          href={`/jobs/${job.id}#tailor-resume`}
+        >
+          Tailor Resume
+        </Link>
+        {job.applyUrl ? (
+          <a
+            className="inline-flex rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            href={job.applyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View Posting
+          </a>
+        ) : null}
+      </div>
     </article>
   );
 }

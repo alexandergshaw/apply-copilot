@@ -594,6 +594,7 @@ export function mapJob(row: JobRowWithRelations): Job {
     matchScore: row.match_score ?? 0,
     postedDate: toDateString(row.created_at),
     description: row.description ?? "",
+    applyUrl: row.apply_url ?? null,
     matchReason: row.match_reason ?? "",
     riskNotes: packet?.risk_notes ?? "",
     tailoredResumeDraft: packet?.tailored_resume ?? "",

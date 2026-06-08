@@ -9,7 +9,6 @@ import {
   getAutoApplyRuns,
   getDefaultResumeTemplateForProfile,
   getJob,
-  getJobSourceId,
   getResumeTemplates,
   getTailoredResumesForJob,
   getUserProfile,
@@ -21,19 +20,17 @@ type JobDetailsProps = {
 
 export default async function JobDetailsPage({ params }: JobDetailsProps) {
   const { id } = await params;
-  const [job, autoApplyRuns, profile, templates, tailoredResumes, jobSourceId] = await Promise.all([
+  const [job, autoApplyRuns, profile, templates, tailoredResumes] = await Promise.all([
     getJob(id),
     getAutoApplyRuns(id),
     getUserProfile(),
     getResumeTemplates(),
     getTailoredResumesForJob(id),
-    getJobSourceId(id),
   ]);
 
   const defaultTemplate = profile
     ? await getDefaultResumeTemplateForProfile(profile.id)
     : null;
-  const isManualImported = jobSourceId === null;
 
   if (!job) {
     notFound();
@@ -65,7 +62,23 @@ export default async function JobDetailsPage({ params }: JobDetailsProps) {
             <h1 className="text-2xl font-semibold text-slate-900">{job.role}</h1>
             <p className="mt-1 text-slate-600">{job.company} · {job.location}</p>
           </div>
-          <StatusBadge status={job.status} />
+          <div className="flex flex-col items-end gap-2">
+            <StatusBadge status={job.status} />
+            {job.applyUrl ? (
+              <a
+                href={job.applyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              >
+                View Original Posting
+              </a>
+            ) : (
+              <span className="inline-flex rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-400">
+                No posting URL saved
+              </span>
+            )}
+          </div>
         </div>
 
         <p className="mt-4 text-sm leading-6 text-slate-700">{job.description}</p>
@@ -111,13 +124,14 @@ export default async function JobDetailsPage({ params }: JobDetailsProps) {
         </div>
       </article>
 
-      <TailoredResumePanel
-        jobId={job.id}
-        isManualImported={isManualImported}
-        templates={templates}
-        tailoredResumes={tailoredResumes}
-        defaultTemplateId={defaultTemplate?.id ?? null}
-      />
+      <div id="tailor-resume" className="scroll-mt-24">
+        <TailoredResumePanel
+          jobId={job.id}
+          templates={templates}
+          tailoredResumes={tailoredResumes}
+          defaultTemplateId={defaultTemplate?.id ?? null}
+        />
+      </div>
 
       {autoApplyRuns.length > 0 ? (
         <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

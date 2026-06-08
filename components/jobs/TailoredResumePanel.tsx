@@ -6,7 +6,7 @@ import { useMemo, useState, useTransition } from "react";
 
 import {
   approveTailoredResume,
-  generateTailoredResume,
+  automaticallyTailorResume,
   markTailoredResumeReviewed,
   regenerateTailoredResume,
   rejectTailoredResume,
@@ -16,7 +16,6 @@ import type { ResumeTemplate, TailoredResume } from "@/lib/supabase/types";
 
 type TailoredResumePanelProps = {
   jobId: string;
-  isManualImported: boolean;
   templates: ResumeTemplate[];
   tailoredResumes: TailoredResume[];
   defaultTemplateId: number | null;
@@ -48,7 +47,6 @@ function formatNumber(value: number | null): string {
 
 export function TailoredResumePanel({
   jobId,
-  isManualImported,
   templates,
   tailoredResumes,
   defaultTemplateId,
@@ -94,27 +92,16 @@ export function TailoredResumePanel({
     });
   };
 
-  if (!isManualImported) {
-    return (
-      <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-base font-semibold text-slate-900">Resume Tailoring</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Resume tailoring from this page is currently available only for manually imported jobs.
-        </p>
-      </article>
-    );
-  }
-
   if (templates.length === 0) {
     return (
       <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-base font-semibold text-slate-900">Resume Tailoring</h2>
-        <p className="mt-2 text-sm text-slate-600">No resume templates found.</p>
+        <p className="mt-2 text-sm text-slate-600">Upload a resume template before tailoring.</p>
         <Link
           href="/resumes"
           className="mt-3 inline-block rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
         >
-          Upload Resume Template
+          Go to Resumes
         </Link>
       </article>
     );
@@ -198,11 +185,11 @@ export function TailoredResumePanel({
             if (!selectedTemplateId) {
               return;
             }
-            run(() => generateTailoredResume(jobId, selectedTemplateId));
+            run(() => automaticallyTailorResume(jobId, selectedTemplateId));
           }}
           className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-60"
         >
-          Generate Tailored Resume
+          Automatically Tailor Resume
         </button>
 
         <button

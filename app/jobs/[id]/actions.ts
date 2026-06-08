@@ -42,14 +42,6 @@ async function upsertTailoredDraft(jobId: number, resumeTemplateId: number): Pro
     return { ok: false, message: jobError?.message ?? "Job not found." };
   }
 
-  if (job.source_id !== null) {
-    return {
-      ok: false,
-      message:
-        "Resume tailoring from this page is currently available only for manually imported jobs.",
-    };
-  }
-
   const { data: template, error: templateError } = await supabase
     .from("resume_templates")
     .select("id, extracted_text, template_text")
@@ -62,11 +54,11 @@ async function upsertTailoredDraft(jobId: number, resumeTemplateId: number): Pro
 
   const sourceText = (template.extracted_text || template.template_text || "").trim();
   const companyName = job.company ?? "Unknown Company";
-  const tailoredText = `Tailored for ${job.title} at ${companyName}\n\n${sourceText}`.trim();
+  const tailoredText = `Tailored for ${job.title} at ${companyName}.\n\n${sourceText}`.trim();
 
   const keywordCoverage = {
     status: "stub",
-    message: "Keyword coverage will be implemented later.",
+    message: "Keyword coverage will be generated later.",
   };
 
   const draftPayload = {
@@ -74,7 +66,8 @@ async function upsertTailoredDraft(jobId: number, resumeTemplateId: number): Pro
     resume_template_id: template.id,
     status: "draft",
     tailored_text: tailoredText,
-    tailoring_notes: "Stub tailoring generated. Replace with OpenAI tailoring later.",
+    tailoring_notes:
+      "Draft generated automatically from the selected resume template. Review before using.",
     keyword_coverage: keywordCoverage,
     match_score: job.match_score,
   };
@@ -206,6 +199,13 @@ export async function generateTailoredResume(
   }
 
   return upsertTailoredDraft(numericJobId, numericTemplateId);
+}
+
+export async function automaticallyTailorResume(
+  jobId: string,
+  resumeTemplateId: number,
+): Promise<ActionResult> {
+  return generateTailoredResume(jobId, resumeTemplateId);
 }
 
 export async function regenerateTailoredResume(

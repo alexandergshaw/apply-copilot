@@ -20,6 +20,7 @@ export type Job = {
   matchScore: number;
   postedDate: string;
   description: string;
+  applyUrl: string | null;
   matchReason: string;
   riskNotes: string;
   tailoredResumeDraft: string;
@@ -85,6 +86,7 @@ export const jobs: Job[] = [
     postedDate: "2026-06-03",
     description:
       "Lead roadmap execution for patient scheduling and care coordination products across web and mobile surfaces.",
+    applyUrl: "https://example.com/northstar-health/senior-product-manager",
     matchReason:
       "Strong overlap with healthcare workflow optimization, analytics-driven prioritization, and cross-functional leadership experience.",
     riskNotes:
@@ -113,6 +115,7 @@ export const jobs: Job[] = [
     postedDate: "2026-06-05",
     description:
       "Own platform strategy for internal AI tooling, experimentation frameworks, and developer enablement.",
+    applyUrl: "https://example.com/cloudline/staff-product-manager-ai-platform",
     matchReason:
       "Deep fit with platform product background and prior experience shipping internal enablement tooling.",
     riskNotes:
@@ -141,6 +144,7 @@ export const jobs: Job[] = [
     postedDate: "2026-05-30",
     description:
       "Drive product strategy for B2B workflow automation products and enterprise integrations.",
+    applyUrl: "https://example.com/blue-oak-labs/principal-product-manager",
     matchReason:
       "Strong enterprise SaaS and automation experience with customer discovery and GTM collaboration.",
     riskNotes:
@@ -169,6 +173,7 @@ export const jobs: Job[] = [
     postedDate: "2026-05-28",
     description:
       "Lead B2C growth experimentation and subscription funnel optimization.",
+    applyUrl: null,
     matchReason:
       "Relevant growth work, but limited direct subscription-pricing ownership compared with role requirements.",
     riskNotes:
