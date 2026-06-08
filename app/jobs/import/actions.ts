@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import type { ActionResult } from "@/lib/actions";
+import { getMissingSupabaseEnvVars } from "@/lib/supabase/config";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 const VALID_JOB_STATUSES = new Set(["found", "saved", "applied", "rejected"]);
@@ -32,9 +33,13 @@ function mapInsertErrorMessage(message: string, code?: string): string {
 export async function createManualJob(formData: FormData): Promise<ActionResult> {
   const supabase = getSupabaseServerClient();
   if (!supabase) {
+    const missingVars = getMissingSupabaseEnvVars();
     return {
       ok: false,
-      message: "Supabase is not configured. Add environment variables to save imported jobs.",
+      message:
+        missingVars.length > 0
+          ? `Supabase is not configured. Missing: ${missingVars.join(", ")}. Add them to .env.local and restart the dev server.`
+          : "Supabase is not configured. Add environment variables to save imported jobs.",
     };
   }
 

@@ -28,6 +28,16 @@ NEXT_PUBLIC_SUPABASE_URL=your-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
 
+Quick setup:
+
+```bash
+cp .env.example .env.local
+# then edit .env.local with real values from your Supabase project
+```
+
+After updating env vars, restart the dev server. You can verify setup at
+`/setup`.
+
 The database schema and seed data live in `supabase/migrations` and
 `supabase/seed.sql`.
 

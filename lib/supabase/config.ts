@@ -7,6 +7,20 @@
 export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 export const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+export function getMissingSupabaseEnvVars(): string[] {
+  const missing: string[] = [];
+
+  if (!SUPABASE_URL) {
+    missing.push("NEXT_PUBLIC_SUPABASE_URL");
+  }
+
+  if (!SUPABASE_ANON_KEY) {
+    missing.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  }
+
+  return missing;
+}
+
 export function isSupabaseConfigured(): boolean {
-  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+  return getMissingSupabaseEnvVars().length === 0;
 }
