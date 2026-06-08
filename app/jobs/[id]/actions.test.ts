@@ -143,6 +143,8 @@ function createSupabaseMock() {
 describe("generateTailoredResume", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.RESUME_TAILORING_MODE;
+    delete process.env.GEMINI_API_KEY;
     getUserProfileMock.mockResolvedValue({ id: "profile-123" });
     getDefaultResumeTemplateForProfileMock.mockResolvedValue({ id: 7 });
     getResumeTemplatesMock.mockResolvedValue([{ id: 7 }]);
@@ -190,11 +192,27 @@ describe("generateTailoredResume", () => {
     expect(payload.output_docx_storage_path).toBe("profile-123/12/tailored-resume-7-123.docx");
     expect(payload.source_docx_storage_path).toBe("profile-123/7/resume.docx");
   });
+
+  it("returns friendly error when llm mode is enabled without Gemini key", async () => {
+    const supabaseMock = createSupabaseMock();
+    getSupabaseServerClientMock.mockReturnValue(supabaseMock.client);
+    process.env.RESUME_TAILORING_MODE = "llm";
+    delete process.env.GEMINI_API_KEY;
+
+    const result = await generateTailoredResume("12", 7);
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toBe(
+      "LLM resume tailoring is enabled, but Gemini is not configured. Set GEMINI_API_KEY or switch RESUME_TAILORING_MODE=stub.",
+    );
+  });
 });
 
 describe("automaticallyTailorResume", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.RESUME_TAILORING_MODE;
+    delete process.env.GEMINI_API_KEY;
     getUserProfileMock.mockResolvedValue({ id: "profile-123" });
     getDefaultResumeTemplateForProfileMock.mockResolvedValue({ id: 7 });
     getResumeTemplatesMock.mockResolvedValue([{ id: 7 }]);
@@ -228,6 +246,8 @@ describe("automaticallyTailorResume", () => {
 describe("tailorResumeForDownload", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.RESUME_TAILORING_MODE;
+    delete process.env.GEMINI_API_KEY;
     getUserProfileMock.mockResolvedValue({ id: "profile-123" });
     getDefaultResumeTemplateForProfileMock.mockResolvedValue({ id: 7 });
     getResumeTemplatesMock.mockResolvedValue([{ id: 7 }]);

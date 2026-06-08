@@ -13,6 +13,7 @@ import {
   tailorResume,
   uploadTailoredResumeDocx,
 } from "@/lib/resume-tailoring";
+import type { ResumeTailoringMode } from "@/lib/resume-tailoring/types";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 function parseJobId(jobId: string): number | null {
@@ -31,6 +32,24 @@ function mapRlsErrorMessage(message: string, code?: string): string {
   }
 
   return message;
+}
+
+function resolveTailoringMode(): { mode: ResumeTailoringMode; configError?: string } {
+  const configuredMode = process.env.RESUME_TAILORING_MODE?.trim().toLowerCase();
+
+  if (configuredMode === "llm") {
+    if (!process.env.GEMINI_API_KEY?.trim()) {
+      return {
+        mode: "llm",
+        configError:
+          "LLM resume tailoring is enabled, but Gemini is not configured. Set GEMINI_API_KEY or switch RESUME_TAILORING_MODE=stub.",
+      };
+    }
+
+    return { mode: "llm" };
+  }
+
+  return { mode: "stub" };
 }
 
 type TailorDraftResult = {
@@ -98,12 +117,17 @@ async function upsertTailoredDraft(jobId: number, resumeTemplateId: number): Pro
     return { ok: false, message };
   }
 
+  const modeConfig = resolveTailoringMode();
+  if (modeConfig.configError) {
+    return { ok: false, message: modeConfig.configError };
+  }
+
   const tailoredResult = await tailorResume({
     job,
     resumeTemplate: template,
     sourceDocxBuffer,
     profile: profile ?? undefined,
-    mode: "stub",
+    mode: modeConfig.mode,
   }).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : "Failed to tailor resume.";
     return { error: message };

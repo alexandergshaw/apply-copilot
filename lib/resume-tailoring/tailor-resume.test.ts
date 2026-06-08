@@ -1,6 +1,14 @@
 import { Document, HeadingLevel, Packer, Paragraph } from "docx";
 import JSZip from "jszip";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { tailorResumeWithGeminiMock } = vi.hoisted(() => ({
+  tailorResumeWithGeminiMock: vi.fn(),
+}));
+
+vi.mock("@/lib/llm/gemini", () => ({
+  tailorResumeWithGemini: tailorResumeWithGeminiMock,
+}));
 
 import { createTailoredResumeDocx } from "./docx-writer";
 import { extractTextFromDocx } from "./docx-reader";
@@ -101,6 +109,15 @@ describe("getUsableResumeText", () => {
 });
 
 describe("tailorResume", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tailorResumeWithGeminiMock.mockResolvedValue({
+      tailoredText: "LLM tailored resume text",
+      tailoringNotes: "LLM draft notes",
+      keywordCoverage: { source: "gemini" },
+    });
+  });
+
   it("throws when no usable text exists", async () => {
     const emptyDocx = await createDocxBuffer([]);
     const input = createInput({
@@ -133,6 +150,34 @@ describe("tailorResume", () => {
     expect(Buffer.isBuffer(result.outputDocxBuffer)).toBe(true);
     expect(result.outputDocxBuffer.length).toBeGreaterThan(0);
     expect(result.outputFilename).toBe("acmecloud-senior-product-manager-tailored-resume.docx");
+    expect(result.keywordCoverage).toEqual({
+      status: "stub",
+      message: "Keyword coverage will be generated later.",
+      jobTitle: "Senior Product Manager",
+      company: "Acme/Cloud",
+    });
+  });
+
+  it("uses Gemini adapter in llm mode", async () => {
+    const sourceDocx = await createDocxBuffer(["Candidate summary", "Experience block"]);
+    const input = createInput({ sourceDocxBuffer: sourceDocx, mode: "llm" });
+
+    const result = await tailorResume(input);
+
+    expect(tailorResumeWithGeminiMock).toHaveBeenCalledTimes(1);
+    expect(result.tailoredText).toBe("LLM tailored resume text");
+    expect(result.tailoringNotes).toBe("LLM draft notes");
+    expect(result.keywordCoverage).toEqual({ source: "gemini" });
+    expect(result.status).toBe("draft");
+  });
+
+  it("keeps stub mode unaffected", async () => {
+    const sourceDocx = await createDocxBuffer(["Candidate summary", "Experience block"]);
+    const input = createInput({ sourceDocxBuffer: sourceDocx, mode: "stub" });
+
+    const result = await tailorResume(input);
+
+    expect(tailorResumeWithGeminiMock).not.toHaveBeenCalled();
     expect(result.keywordCoverage).toEqual({
       status: "stub",
       message: "Keyword coverage will be generated later.",

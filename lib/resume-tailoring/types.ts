@@ -1,3 +1,5 @@
+export type ResumeTailoringMode = "stub" | "llm";
+
 export type ResumeTailoringJob = {
   id: number;
   title: string;
@@ -25,7 +27,13 @@ export type ResumeTailoringInput = {
   resumeTemplate: ResumeTailoringTemplate;
   sourceDocxBuffer: Buffer;
   profile?: unknown;
-  mode: "stub" | "llm";
+  mode: ResumeTailoringMode;
+};
+
+export type ResumeTailoringLlmOutput = {
+  tailoredText: string;
+  tailoringNotes: string;
+  keywordCoverage: Record<string, unknown>;
 };
 
 export type ResumeTailoringResult = {
