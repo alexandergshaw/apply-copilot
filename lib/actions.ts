@@ -18,6 +18,14 @@ function parseJobId(jobId: string): number | null {
   return Number.isNaN(numericId) ? null : numericId;
 }
 
+function mapRlsErrorMessage(message: string, code?: string): string {
+  if (code === "42501" || message.toLowerCase().includes("row-level security")) {
+    return "Action blocked by Supabase RLS. Apply the latest migration that adds application_packets policies, then retry.";
+  }
+
+  return message;
+}
+
 // --- Profile ---------------------------------------------------------------
 
 export async function updateProfile(
@@ -35,7 +43,7 @@ export async function updateProfile(
     : await supabase.from("user_profiles").insert(row);
 
   if (error) {
-    return { ok: false, message: error.message };
+    return { ok: false, message: mapRlsErrorMessage(error.message, error.code) };
   }
 
   revalidatePath("/profile");
@@ -179,7 +187,7 @@ export async function markJobApplied(jobId: string): Promise<ActionResult> {
     .eq("id", numericId);
 
   if (jobError) {
-    return { ok: false, message: jobError.message };
+    return { ok: false, message: mapRlsErrorMessage(jobError.message, jobError.code) };
   }
 
   const { error: applicationError } = await supabase.from("applications").insert({
@@ -189,7 +197,10 @@ export async function markJobApplied(jobId: string): Promise<ActionResult> {
   });
 
   if (applicationError) {
-    return { ok: false, message: applicationError.message };
+    return {
+      ok: false,
+      message: mapRlsErrorMessage(applicationError.message, applicationError.code),
+    };
   }
 
   revalidateJob(jobId);
