@@ -1,10 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { createManualJob } from "@/app/jobs/import/actions";
 import type { ExtractedJobPosting } from "@/lib/job-import";
+
+type JobImportPreviewFormProps = {
+  extracted: ExtractedJobPosting;
+  submittedUrl: string;
+};
 
 type FormState = {
   title: string;
@@ -15,53 +19,39 @@ type FormState = {
   description: string;
   status: string;
   queueForAutoApply: boolean;
-  submittedUrl: string;
 };
 
-const initialState: FormState = {
-  title: "",
-  company: "",
-  location: "",
-  salary: "",
-  applyUrl: "",
-  description: "",
-  status: "found",
-  queueForAutoApply: false,
-  submittedUrl: "",
-};
-
-type ManualJobImportFormProps = {
-  showHeader?: boolean;
-  title?: string;
-  description?: string;
-  submitLabel?: string;
-  initialValues?: Partial<ExtractedJobPosting> & { submitted_url?: string };
-};
-
-function toFormState(
-  initialValues: ManualJobImportFormProps["initialValues"] | undefined,
-): FormState {
+function toFormState(extracted: ExtractedJobPosting): FormState {
   return {
-    title: initialValues?.title ?? initialState.title,
-    company: initialValues?.company ?? initialState.company,
-    location: initialValues?.location ?? initialState.location,
-    salary: initialValues?.salary ?? initialState.salary,
-    applyUrl: initialValues?.apply_url ?? initialState.applyUrl,
-    description: initialValues?.description ?? initialState.description,
-    status: initialState.status,
-    queueForAutoApply: initialState.queueForAutoApply,
-    submittedUrl: initialValues?.submitted_url ?? initialState.submittedUrl,
+    title: extracted.title,
+    company: extracted.company ?? "",
+    location: extracted.location ?? "",
+    salary: extracted.salary ?? "",
+    applyUrl: extracted.apply_url,
+    description: extracted.description ?? "",
+    status: "found",
+    queueForAutoApply: false,
   };
 }
 
-export function ManualJobImportForm({
-  showHeader = true,
-  title = "Paste Manually",
-  description = "Paste a job posting and save it to your queue.",
-  submitLabel = "Save Job",
-  initialValues,
-}: ManualJobImportFormProps) {
-  const [form, setForm] = useState<FormState>(() => toFormState(initialValues));
+function sourceLabel(source: ExtractedJobPosting["extraction_source"]): string {
+  if (source === "json_ld") {
+    return "JSON-LD";
+  }
+
+  if (source === "meta") {
+    return "Meta Tags";
+  }
+
+  if (source === "html_fallback") {
+    return "HTML Fallback";
+  }
+
+  return "Manual";
+}
+
+export function JobImportPreviewForm({ extracted, submittedUrl }: JobImportPreviewFormProps) {
+  const [form, setForm] = useState<FormState>(() => toFormState(extracted));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -81,9 +71,8 @@ export function ManualJobImportForm({
     formData.set("apply_url", form.applyUrl);
     formData.set("description", form.description);
     formData.set("status", form.status);
-    if (form.submittedUrl) {
-      formData.set("submitted_url", form.submittedUrl);
-    }
+    formData.set("submitted_url", submittedUrl);
+
     if (form.queueForAutoApply) {
       formData.set("queue_for_auto_apply", "on");
     }
@@ -91,15 +80,32 @@ export function ManualJobImportForm({
     startTransition(async () => {
       const result = await createManualJob(formData);
       if (!result.ok) {
-        setError(result.message ?? "Unable to import job.");
+        setError(result.message ?? "Unable to save imported job.");
       }
     });
   };
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      {showHeader ? <h2 className="text-lg font-semibold text-slate-900">{title}</h2> : null}
-      {showHeader ? <p className="mt-2 text-sm text-slate-600">{description}</p> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900">Review Extracted Job Details</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Confirm and edit the fields below before saving this manual job.
+          </p>
+        </div>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-700">
+          Source: {sourceLabel(extracted.extraction_source)}
+        </span>
+      </div>
+
+      {extracted.warnings.length > 0 ? (
+        <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          {extracted.warnings.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+        </div>
+      ) : null}
 
       <form
         className="mt-5 space-y-4"
@@ -205,14 +211,8 @@ export function ManualJobImportForm({
             type="submit"
             disabled={isPending}
           >
-            {isPending ? "Saving..." : submitLabel}
+            {isPending ? "Saving..." : "Save Job"}
           </button>
-          <Link
-            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
-            href="/jobs"
-          >
-            Back to Jobs
-          </Link>
         </div>
       </form>
     </section>
