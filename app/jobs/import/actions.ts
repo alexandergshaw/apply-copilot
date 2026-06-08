@@ -38,7 +38,7 @@ export async function createManualJob(formData: FormData): Promise<ActionResult>
       ok: false,
       message:
         missingVars.length > 0
-          ? `Supabase is not configured. Missing: ${missingVars.join(", ")}. Add them to .env.local and restart the dev server.`
+          ? `Supabase is not configured. Missing: ${missingVars.join(", ")}. Set these in your deployment environment (or .env.local for local dev) and restart/redeploy.`
           : "Supabase is not configured. Add environment variables to save imported jobs.",
     };
   }
