@@ -27,6 +27,11 @@ function mapInsertErrorMessage(message: string, code?: string): string {
   if (code === "23505" && message.toLowerCase().includes("apply_url")) {
     return "A job with this apply URL already exists. Please use a different URL.";
   }
+
+  if (code === "42501" || message.toLowerCase().includes("row-level security")) {
+    return "Import failed because Supabase RLS blocked writes to jobs. Apply the latest migration that adds jobs policies, then retry.";
+  }
+
   return message;
 }
 

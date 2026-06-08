@@ -15,6 +15,14 @@ function revalidateJobPaths(jobId: string): void {
   revalidatePath(`/jobs/${jobId}`);
 }
 
+function mapRlsErrorMessage(message: string, code?: string): string {
+  if (code === "42501" || message.toLowerCase().includes("row-level security")) {
+    return "Update blocked by Supabase RLS. Apply the latest migration that adds jobs and auto_apply_runs policies, then retry.";
+  }
+
+  return message;
+}
+
 export async function approveAutoApply(jobId: string): Promise<ActionResult> {
   const supabase = getSupabaseServerClient();
   if (!supabase) {
@@ -40,7 +48,7 @@ export async function approveAutoApply(jobId: string): Promise<ActionResult> {
     .eq("id", numericId);
 
   if (jobError) {
-    return { ok: false, message: jobError.message };
+    return { ok: false, message: mapRlsErrorMessage(jobError.message, jobError.code) };
   }
 
   const { error: runError } = await supabase.from("auto_apply_runs").insert({
@@ -49,7 +57,7 @@ export async function approveAutoApply(jobId: string): Promise<ActionResult> {
   });
 
   if (runError) {
-    return { ok: false, message: runError.message };
+    return { ok: false, message: mapRlsErrorMessage(runError.message, runError.code) };
   }
 
   revalidateJobPaths(jobId);
@@ -79,7 +87,7 @@ export async function cancelAutoApply(jobId: string): Promise<ActionResult> {
     .eq("id", numericId);
 
   if (error) {
-    return { ok: false, message: error.message };
+    return { ok: false, message: mapRlsErrorMessage(error.message, error.code) };
   }
 
   revalidateJobPaths(jobId);
