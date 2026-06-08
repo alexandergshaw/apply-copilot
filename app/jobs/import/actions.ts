@@ -239,6 +239,7 @@ export async function createManualJob(formData: FormData): Promise<CreateManualJ
       if (!updateError) {
         revalidatePath("/jobs");
         redirect("/jobs");
+        return { ok: true };
       }
 
       return {
