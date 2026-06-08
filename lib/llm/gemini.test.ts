@@ -20,9 +20,9 @@ vi.mock("@google/genai", () => ({
   GoogleGenAI: GoogleGenAIMock,
 }));
 
-import { tailorResumeWithGemini } from "./gemini";
+import { GeminiResumeTailoringService } from "./gemini-service";
 
-describe("tailorResumeWithGemini", () => {
+describe("GeminiResumeTailoringService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.GEMINI_MODEL = "gemini-2.5-flash";
@@ -30,6 +30,7 @@ describe("tailorResumeWithGemini", () => {
   });
 
   it("returns parsed structured output from Gemini JSON text", async () => {
+    const service = new GeminiResumeTailoringService();
     generateContentMock.mockResolvedValue({
       text: JSON.stringify({
         tailoredText: "Tailored resume body",
@@ -38,7 +39,7 @@ describe("tailorResumeWithGemini", () => {
       }),
     });
 
-    const result = await tailorResumeWithGemini({
+    const result = await service.tailorResume({
       job: {
         id: 1,
         title: "Product Manager",
@@ -62,10 +63,11 @@ describe("tailorResumeWithGemini", () => {
   });
 
   it("throws readable error when API key is missing", async () => {
+    const service = new GeminiResumeTailoringService();
     delete process.env.GEMINI_API_KEY;
 
     await expect(
-      tailorResumeWithGemini({
+      service.tailorResume({
         job: {
           id: 1,
           title: "Product Manager",
@@ -81,10 +83,11 @@ describe("tailorResumeWithGemini", () => {
   });
 
   it("throws readable parse error when output is not JSON", async () => {
+    const service = new GeminiResumeTailoringService();
     generateContentMock.mockResolvedValue({ text: "not-json" });
 
     await expect(
-      tailorResumeWithGemini({
+      service.tailorResume({
         job: {
           id: 1,
           title: "Product Manager",

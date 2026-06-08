@@ -2,12 +2,13 @@ import { Document, HeadingLevel, Packer, Paragraph } from "docx";
 import JSZip from "jszip";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { tailorResumeWithGeminiMock } = vi.hoisted(() => ({
-  tailorResumeWithGeminiMock: vi.fn(),
+const { getLlmResumeTailoringServiceMock, llmTailorResumeMock } = vi.hoisted(() => ({
+  getLlmResumeTailoringServiceMock: vi.fn(),
+  llmTailorResumeMock: vi.fn(),
 }));
 
-vi.mock("@/lib/llm/gemini", () => ({
-  tailorResumeWithGemini: tailorResumeWithGeminiMock,
+vi.mock("@/lib/llm/service", () => ({
+  getLlmResumeTailoringService: getLlmResumeTailoringServiceMock,
 }));
 
 import { createTailoredResumeDocx } from "./docx-writer";
@@ -111,10 +112,13 @@ describe("getUsableResumeText", () => {
 describe("tailorResume", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    tailorResumeWithGeminiMock.mockResolvedValue({
+    llmTailorResumeMock.mockResolvedValue({
       tailoredText: "LLM tailored resume text",
       tailoringNotes: "LLM draft notes",
       keywordCoverage: { source: "gemini" },
+    });
+    getLlmResumeTailoringServiceMock.mockReturnValue({
+      tailorResume: llmTailorResumeMock,
     });
   });
 
@@ -164,7 +168,8 @@ describe("tailorResume", () => {
 
     const result = await tailorResume(input);
 
-    expect(tailorResumeWithGeminiMock).toHaveBeenCalledTimes(1);
+    expect(getLlmResumeTailoringServiceMock).toHaveBeenCalledTimes(1);
+    expect(llmTailorResumeMock).toHaveBeenCalledTimes(1);
     expect(result.tailoredText).toBe("LLM tailored resume text");
     expect(result.tailoringNotes).toBe("LLM draft notes");
     expect(result.keywordCoverage).toEqual({ source: "gemini" });
@@ -177,7 +182,7 @@ describe("tailorResume", () => {
 
     const result = await tailorResume(input);
 
-    expect(tailorResumeWithGeminiMock).not.toHaveBeenCalled();
+    expect(llmTailorResumeMock).not.toHaveBeenCalled();
     expect(result.keywordCoverage).toEqual({
       status: "stub",
       message: "Keyword coverage will be generated later.",

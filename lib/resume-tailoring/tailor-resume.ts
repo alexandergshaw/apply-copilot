@@ -1,6 +1,6 @@
 import sanitizeFilename from "sanitize-filename";
 
-import { tailorResumeWithGemini } from "@/lib/llm/gemini";
+import { getLlmResumeTailoringService } from "@/lib/llm/service";
 import { extractTextFromDocx } from "./docx-reader";
 import { createTailoredResumeDocx } from "./docx-writer";
 import type {
@@ -62,7 +62,8 @@ export async function tailorResume(input: ResumeTailoringInput): Promise<ResumeT
   let keywordCoverage: Record<string, unknown>;
 
   if (input.mode === "llm") {
-    const llmResult = await tailorResumeWithGemini({
+    const llmService = getLlmResumeTailoringService();
+    const llmResult = await llmService.tailorResume({
       job: input.job,
       resumeText: usableText,
       profile: input.profile,
