@@ -12,6 +12,7 @@ import {
   type ActionResult,
 } from "@/lib/actions";
 import type { JobSource, SourceType } from "@/lib/mock-data";
+import { parseGreenhouseSourceFromUrl } from "@/lib/sources/greenhouse";
 
 type SourceFormProps = {
   initialSources: JobSource[];
@@ -99,6 +100,8 @@ export function SourceForm({ initialSources }: SourceFormProps) {
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
+  const [extractionMessage, setExtractionMessage] = useState<string | null>(null);
+  const [extractionError, setExtractionError] = useState(false);
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -190,6 +193,30 @@ export function SourceForm({ initialSources }: SourceFormProps) {
     runAction(() => applyDefaultFiltersToAllJobSources(), undefined, true);
   };
 
+  const autoFillGreenhouseFromUrl = () => {
+    const parsed = parseGreenhouseSourceFromUrl(draft.url);
+
+    if (!parsed) {
+      setExtractionMessage(
+        "URL is not a supported Greenhouse board URL. Expected boards.greenhouse.io/{slug}.",
+      );
+      setExtractionError(true);
+      return;
+    }
+
+    setDraft((current) => ({
+      ...current,
+      sourceType: parsed.sourceType,
+      sourceName: parsed.sourceName,
+      companyName: parsed.companyName,
+      companySlug: parsed.companySlug,
+      url: parsed.canonicalUrl,
+    }));
+
+    setExtractionMessage("Extracted Greenhouse source details from URL.");
+    setExtractionError(false);
+  };
+
   return (
     <section className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -249,8 +276,35 @@ export function SourceForm({ initialSources }: SourceFormProps) {
               className="w-full rounded-md border border-slate-300 bg-white px-3 py-2"
               type="url"
               value={draft.url}
-              onChange={(event) => setDraft({ ...draft, url: event.target.value })}
+              onChange={(event) => {
+                setDraft({ ...draft, url: event.target.value });
+                if (extractionMessage) {
+                  setExtractionMessage(null);
+                  setExtractionError(false);
+                }
+              }}
             />
+            <div className="mt-2 flex items-center gap-3">
+              <button
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                type="button"
+                onClick={autoFillGreenhouseFromUrl}
+              >
+                Auto-fill from URL
+              </button>
+              <span className="text-xs text-slate-500">
+                Supports boards.greenhouse.io and job-boards.greenhouse.io URLs.
+              </span>
+            </div>
+            {extractionMessage ? (
+              <span
+                className={`mt-1 block text-xs ${
+                  extractionError ? "text-amber-700" : "text-emerald-700"
+                }`}
+              >
+                {extractionMessage}
+              </span>
+            ) : null}
           </label>
 
           <label className="text-sm text-slate-700">
