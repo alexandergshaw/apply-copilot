@@ -1,3 +1,5 @@
+import * as cheerio from "cheerio";
+import type { AnyNode } from "domhandler";
 import JSZip from "jszip";
 
 type CreateTailoredResumeDocxInput = {
@@ -5,113 +7,128 @@ type CreateTailoredResumeDocxInput = {
   tailoredText: string;
 };
 
-function xmlEscape(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-/**
- * Extracts the paragraph-level properties (`<w:pPr>`) from a single paragraph,
- * preserving its style, indentation, spacing, numbering, and list formatting.
- */
-function extractParagraphProperties(paragraphXml: string): string {
-  const paragraphPropertiesMatch = paragraphXml.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/);
-  return paragraphPropertiesMatch?.[0] ?? "";
-}
-
-/**
- * Extracts the run-level properties (`<w:rPr>`) from the first run in a
- * paragraph, preserving font, size, weight, and color for replaced text.
- */
-function extractFirstRunProperties(paragraphXml: string): string {
-  const firstRunMatch = paragraphXml.match(/<w:r\b[\s\S]*?<\/w:r>/);
-  if (!firstRunMatch) {
-    return "";
+function splitTailoredText(tailoredText: string): string[] {
+  const lines = tailoredText.replace(/\r\n/g, "\n").split("\n");
+  if (lines.length > 1 && lines[lines.length - 1] === "") {
+    lines.pop();
   }
 
-  const runPropertiesMatch = firstRunMatch[0].match(/<w:rPr\b[\s\S]*?<\/w:rPr>/);
-  return runPropertiesMatch?.[0] ?? "";
+  return lines.length > 0 ? lines : [""];
 }
 
-/**
- * Rebuilds a paragraph using the original paragraph/run properties so the
- * tailored text inherits the template's exact formatting for that line.
- */
-function buildParagraphFromTemplate(
+function splitTextAcrossWeights(text: string, weights: number[]): string[] {
+  if (weights.length === 0) {
+    return [];
+  }
+
+  if (weights.length === 1) {
+    return [text];
+  }
+
+  const totalWeight = weights.reduce((sum, weight) => sum + Math.max(weight, 0), 0);
+  if (totalWeight <= 0) {
+    return weights.map((_, index) => (index === 0 ? text : ""));
+  }
+
+  const allocations = weights.map((weight) =>
+    Math.floor((text.length * Math.max(weight, 0)) / totalWeight),
+  );
+  let allocatedLength = allocations.reduce((sum, length) => sum + length, 0);
+
+  for (let index = 0; allocatedLength < text.length; index += 1) {
+    allocations[index % allocations.length] += 1;
+    allocatedLength += 1;
+  }
+
+  const segments: string[] = [];
+  let offset = 0;
+  for (const length of allocations) {
+    segments.push(text.slice(offset, offset + length));
+    offset += length;
+  }
+
+  return segments;
+}
+
+function replaceParagraphText(
+  $: cheerio.CheerioAPI,
+  paragraph: cheerio.Cheerio<AnyNode>,
   text: string,
-  paragraphProperties: string,
-  runProperties: string,
-): string {
-  const escaped = xmlEscape(text);
-  const run = `<w:r>${runProperties}<w:t xml:space="preserve">${escaped}</w:t></w:r>`;
-  return `<w:p>${paragraphProperties}${run}</w:p>`;
+): void {
+  const textNodes = paragraph.find("w\\:t").toArray();
+  if (textNodes.length === 0) {
+    const firstRun = paragraph.children("w\\:r").first();
+    if (firstRun.length > 0) {
+      const textNode = $("<w:t xml:space=\"preserve\"></w:t>");
+      textNode.text(text);
+      firstRun.append(textNode);
+    } else {
+      const run = $("<w:r><w:t xml:space=\"preserve\"></w:t></w:r>");
+      run.find("w\\:t").text(text);
+      paragraph.append(run);
+    }
+    return;
+  }
+
+  const weights = textNodes.map((node) => $(node).text().length);
+  const segments = splitTextAcrossWeights(text, weights);
+
+  textNodes.forEach((node, index) => {
+    const textNode = $(node);
+    textNode.attr("xml:space", "preserve");
+    textNode.text(segments[index] ?? "");
+  });
 }
 
-/**
- * Section-aware replacement: walks the original paragraphs in order and swaps
- * their text content with the tailored lines, preserving each paragraph's
- * formatting. Extra tailored lines reuse the last paragraph's style; unused
- * original paragraphs are dropped so no source content leaks through.
- */
 function replaceBodyContent(documentXml: string, tailoredText: string): string {
-  const bodyMatch = documentXml.match(/(<w:body\b[^>]*>)([\s\S]*)(<\/w:body>)/);
-  if (!bodyMatch) {
+  const $ = cheerio.load(documentXml, { xmlMode: true });
+  const body = $("w\\:body").first();
+  if (body.length === 0) {
     throw new Error("DOCX document body was not found.");
   }
 
-  const [, bodyOpen, bodyInner, bodyClose] = bodyMatch;
+  const paragraphs = body.find("w\\:p").toArray().map((paragraph) => $(paragraph));
+  const lines = splitTailoredText(tailoredText);
 
-  // Preserve a body-level <w:sectPr> (page size, margins, columns).
-  const trailingSectPrMatch = bodyInner.match(/<w:sectPr\b[\s\S]*?<\/w:sectPr>\s*$/);
-  const trailingSectPr = trailingSectPrMatch?.[0] ?? "";
-  const contentWithoutSectPr = trailingSectPr
-    ? bodyInner.slice(0, bodyInner.length - trailingSectPr.length)
-    : bodyInner;
-
-  const paragraphs = contentWithoutSectPr.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? [];
-
-  // Keep empty lines so each tailored line stays positionally aligned with the
-  // template paragraph at the same index (preserving section structure).
-  const rawLines = tailoredText.replace(/\r\n/g, "\n").split("\n").map((line) => line.trim());
-  // Drop a single trailing empty line caused by a final newline.
-  if (rawLines.length > 1 && rawLines[rawLines.length - 1] === "") {
-    rawLines.pop();
-  }
-  const lines = rawLines;
-
-  // No paragraphs to template from: emit minimal paragraphs so output is valid.
   if (paragraphs.length === 0) {
-    const fallback = lines.map((line) => buildParagraphFromTemplate(line, "", "")).join("");
-    return documentXml.replace(
-      bodyMatch[0],
-      `${bodyOpen}${fallback}${trailingSectPr}${bodyClose}`,
-    );
+    const sectPr = body.children("w\\:sectPr").first();
+    for (const line of lines) {
+      const paragraph = $(
+        `<w:p><w:r><w:t xml:space="preserve">${line}</w:t></w:r></w:p>`,
+      );
+      if (sectPr.length > 0) {
+        sectPr.before(paragraph);
+      } else {
+        body.append(paragraph);
+      }
+    }
+
+    return $.xml();
   }
 
   const lastParagraph = paragraphs[paragraphs.length - 1];
-  const lastParagraphProperties = extractParagraphProperties(lastParagraph);
-  const lastRunProperties = extractFirstRunProperties(lastParagraph);
+  const sectPr = body.children("w\\:sectPr").first();
 
-  const rebuiltParagraphs = lines.map((line, index) => {
-    const templateParagraph = paragraphs[index] ?? lastParagraph;
-    const paragraphProperties =
-      index < paragraphs.length
-        ? extractParagraphProperties(templateParagraph)
-        : lastParagraphProperties;
-    const runProperties =
-      index < paragraphs.length
-        ? extractFirstRunProperties(templateParagraph)
-        : lastRunProperties;
+  lines.forEach((line, index) => {
+    if (index < paragraphs.length) {
+      replaceParagraphText($, paragraphs[index], line);
+      return;
+    }
 
-    return buildParagraphFromTemplate(line, paragraphProperties, runProperties);
+    const clonedParagraph = lastParagraph.clone();
+    replaceParagraphText($, clonedParagraph, line);
+    if (sectPr.length > 0) {
+      sectPr.before(clonedParagraph);
+    } else {
+      body.append(clonedParagraph);
+    }
   });
 
-  const rebuiltBody = `${bodyOpen}${rebuiltParagraphs.join("")}${trailingSectPr}${bodyClose}`;
-  return documentXml.replace(bodyMatch[0], rebuiltBody);
+  for (let index = lines.length; index < paragraphs.length; index += 1) {
+    replaceParagraphText($, paragraphs[index], "");
+  }
+
+  return $.xml();
 }
 
 export async function createTailoredResumeDocx(

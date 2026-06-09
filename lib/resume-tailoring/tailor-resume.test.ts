@@ -1,4 +1,4 @@
-import { Document, HeadingLevel, Packer, Paragraph } from "docx";
+import { Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
 import JSZip from "jszip";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,6 +31,34 @@ async function createDocxBuffer(paragraphs: string[]): Promise<Buffer> {
               : text,
           ),
         ),
+      },
+    ],
+  });
+
+  return Packer.toBuffer(doc);
+}
+
+async function createStyledDocxBuffer(): Promise<Buffer> {
+  const doc = new Document({
+    sections: [
+      {
+        properties: {},
+        children: [
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            children: [
+              new TextRun({ text: "Original title", bold: true, size: 28 }),
+              new TextRun({ text: " summary", size: 22 }),
+            ],
+          }),
+          new Paragraph({
+            bullet: { level: 0 },
+            children: [
+              new TextRun({ text: "Original bullet", bold: true }),
+              new TextRun({ text: " detail" }),
+            ],
+          }),
+        ],
       },
     ],
   });
@@ -211,6 +239,30 @@ describe("createTailoredResumeDocx", () => {
     expect(outputStyles).toBe(sourceStyles);
     expect(outputDocument).toContain("Tailored for Senior Product Manager at Acme/Cloud");
     expect(outputDocument).toContain("Updated summary");
+  });
+
+  it("preserves paragraph and run formatting in the tailored output", async () => {
+    const sourceDocx = await createStyledDocxBuffer();
+
+    const output = await createTailoredResumeDocx({
+      sourceDocxBuffer: sourceDocx,
+      tailoredText: "Tailored headline with bold text\nTailored bullet line",
+    });
+
+    const outputZip = await JSZip.loadAsync(output);
+    const outputDocument = await outputZip.file("word/document.xml")?.async("string");
+    const renderedText = Array.from(
+      outputDocument?.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g) ?? [],
+    )
+      .map((match) => match[1])
+      .join("");
+
+    expect(renderedText).toContain("Tailored headline with bold text");
+    expect(renderedText).toContain("Tailored bullet line");
+    expect(outputDocument).toContain("w:pStyle");
+    expect(outputDocument).toContain("w:b");
+    expect(outputDocument).toContain("w:sz");
+    expect(outputDocument).toContain("w:numPr");
   });
 
   it("throws a readable error when source buffer is not a DOCX package", async () => {
