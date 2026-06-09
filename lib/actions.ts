@@ -199,7 +199,8 @@ export async function applyDefaultFiltersToAllJobSources(): Promise<ActionResult
 
   const { error } = await supabase
     .from("job_sources")
-    .update({ remote_only: true, posted_within_days: 1 });
+    .update({ remote_only: true, posted_within_days: 1 })
+    .gt("id", 0);
 
   if (error) {
     return { ok: false, message: error.message };

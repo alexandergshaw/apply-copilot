@@ -23,6 +23,7 @@ function createSupabaseMock() {
   const insertMock = vi.fn().mockResolvedValue({ error: null });
   const updateMock = vi.fn().mockReturnValue({
     eq: vi.fn().mockResolvedValue({ error: null }),
+    gt: vi.fn().mockResolvedValue({ error: null }),
   });
 
   const fromMock = vi.fn((table: string) => {
@@ -136,5 +137,6 @@ describe("job source interval mapping", () => {
       remote_only: true,
       posted_within_days: 1,
     });
+    expect(supabase.updateMock.mock.results[0]?.value.gt).toHaveBeenCalledWith("id", 0);
   });
 });
