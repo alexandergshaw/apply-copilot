@@ -155,9 +155,30 @@ export type JobSourceRow = {
   name: string;
   source_type: string;
   url: string;
+  company_name: string | null;
+  company_slug: string | null;
   enabled: boolean | null;
+  last_run_at: string | null;
+  last_success_at: string | null;
+  last_error: string | null;
+  run_count: number | null;
   created_at: string | null;
   updated_at: string | null;
+};
+
+export type JobFetchRunRow = {
+  id: number;
+  source_id: number | null;
+  source_type: string;
+  status: string | null;
+  jobs_found: number | null;
+  jobs_inserted: number | null;
+  jobs_updated: number | null;
+  jobs_skipped: number | null;
+  error_message: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string | null;
 };
 
 export type JobRow = {
@@ -279,6 +300,20 @@ export type Database = {
         Insert: Partial<JobSourceRow>;
         Update: Partial<JobSourceRow>;
         Relationships: [];
+      };
+      job_fetch_runs: {
+        Row: JobFetchRunRow;
+        Insert: Partial<JobFetchRunRow>;
+        Update: Partial<JobFetchRunRow>;
+        Relationships: [
+          {
+            foreignKeyName: "job_fetch_runs_source_id_fkey";
+            columns: ["source_id"];
+            isOneToOne: false;
+            referencedRelation: "job_sources";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       jobs: {
         Row: JobRow;
@@ -409,10 +444,20 @@ export function mapApplicationStatus(status: string | null | undefined): Applica
 }
 
 function mapSourceType(sourceType: string | null | undefined): SourceType {
-  const allowed: SourceType[] = ["job board", "company", "recruiter", "referral"];
+  const allowed: SourceType[] = [
+    "greenhouse",
+    "lever",
+    "ashby",
+    "manual",
+    "url",
+    "job board",
+    "company",
+    "recruiter",
+    "referral",
+  ];
   return (allowed as string[]).includes(sourceType ?? "")
     ? (sourceType as SourceType)
-    : "job board";
+    : "manual";
 }
 
 function parseJsonArray(value: unknown): unknown[] {
@@ -572,12 +617,18 @@ export function mapJobSource(row: JobSourceRow): JobSource {
     sourceName: row.name,
     sourceType: mapSourceType(row.source_type),
     url: row.url,
+    companyName: row.company_name ?? "",
+    companySlug: row.company_slug ?? "",
     enabled: row.enabled ?? true,
+    lastRunAt: toISOStringOrEmpty(row.last_run_at),
+    lastSuccessAt: toISOStringOrEmpty(row.last_success_at),
+    lastError: row.last_error ?? "",
+    runCount: row.run_count ?? 0,
   };
 }
 
 type JobRowWithRelations = JobRow & {
-  job_sources?: { name: string | null } | null;
+  job_sources?: { name: string | null; source_type: string | null } | null;
   application_packets?: ApplicationPacketRow[] | ApplicationPacketRow | null;
 };
 
@@ -599,6 +650,8 @@ export function mapJob(row: JobRowWithRelations): Job {
     role: row.title,
     location: row.location ?? "",
     source: row.job_sources?.name ?? "",
+    sourceType: row.job_sources?.source_type ?? "",
+    sourceId: row.source_id != null ? String(row.source_id) : "",
     status: mapJobStatus(row.status),
     matchScore: row.match_score ?? 0,
     postedDate: toDateString(row.created_at),

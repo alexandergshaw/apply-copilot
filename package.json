@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test:unit": "vitest run"
+    "test:unit": "vitest run",
+    "worker:jobs": "tsx workers/job-fetcher/index.ts",
+    "worker:jobs:once": "tsx workers/job-fetcher/index.ts --once"
   },
   "dependencies": {
     "@google/genai": "^2.8.0",
@@ -30,6 +32,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5",
     "vitest": "^4.1.8"
   }

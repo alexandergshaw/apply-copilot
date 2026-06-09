@@ -37,7 +37,7 @@ export async function getJobs(): Promise<Job[]> {
 
   const { data, error } = await supabase
     .from("jobs")
-    .select("*, job_sources(name)")
+    .select("*, job_sources(name, source_type)")
     .order("match_score", { ascending: false });
 
   if (error || !data) {
@@ -60,7 +60,7 @@ export async function getJob(id: string): Promise<Job | null> {
 
   const { data, error } = await supabase
     .from("jobs")
-    .select("*, job_sources(name), application_packets(*)")
+    .select("*, job_sources(name, source_type), application_packets(*)")
     .eq("id", numericId)
     .maybeSingle();
 

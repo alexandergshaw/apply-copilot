@@ -9,6 +9,7 @@ import type { Job } from "@/lib/mock-data";
 const initialFilters: JobFilterState = {
   status: "all",
   source: "all",
+  sourceType: "all",
   minMatchScore: 0,
   search: "",
 };
@@ -25,6 +26,11 @@ export function JobsBrowser({ jobs }: JobsBrowserProps) {
     [jobs],
   );
 
+  const sourceTypes = useMemo(
+    () => Array.from(new Set(jobs.map((job) => job.sourceType).filter(Boolean))),
+    [jobs],
+  );
+
   const filteredJobs = useMemo(() => {
     const normalizedSearch = filters.search.trim().toLowerCase();
 
@@ -34,6 +40,10 @@ export function JobsBrowser({ jobs }: JobsBrowserProps) {
       }
 
       if (filters.source !== "all" && job.source !== filters.source) {
+        return false;
+      }
+
+      if (filters.sourceType !== "all" && job.sourceType !== filters.sourceType) {
         return false;
       }
 
@@ -53,7 +63,7 @@ export function JobsBrowser({ jobs }: JobsBrowserProps) {
 
   return (
     <>
-      <JobFilters filters={filters} sources={sources} onChange={setFilters} />
+      <JobFilters filters={filters} sources={sources} sourceTypes={sourceTypes} onChange={setFilters} />
 
       <div className="space-y-4">
         {filteredJobs.length > 0 ? (

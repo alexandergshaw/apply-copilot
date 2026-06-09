@@ -16,6 +16,8 @@ export type Job = {
   role: string;
   location: string;
   source: string;
+  sourceType: string;
+  sourceId: string;
   status: JobStatus;
   matchScore: number;
   postedDate: string;
@@ -64,14 +66,29 @@ export type Profile = {
   resumeText: string;
 };
 
-export type SourceType = "job board" | "company" | "recruiter" | "referral";
+export type SourceType =
+  | "greenhouse"
+  | "lever"
+  | "ashby"
+  | "manual"
+  | "url"
+  | "job board"
+  | "company"
+  | "recruiter"
+  | "referral";
 
 export type JobSource = {
   id: string;
   sourceName: string;
   sourceType: SourceType;
   url: string;
+  companyName: string;
+  companySlug: string;
   enabled: boolean;
+  lastRunAt: string;
+  lastSuccessAt: string;
+  lastError: string;
+  runCount: number;
 };
 
 export const jobs: Job[] = [
@@ -81,6 +98,8 @@ export const jobs: Job[] = [
     role: "Senior Product Manager",
     location: "Remote (US)",
     source: "LinkedIn",
+    sourceType: "job board",
+    sourceId: "source-1",
     status: "review",
     matchScore: 91,
     postedDate: "2026-06-03",
@@ -110,6 +129,8 @@ export const jobs: Job[] = [
     role: "Staff Product Manager, AI Platform",
     location: "San Francisco, CA",
     source: "Greenhouse",
+    sourceType: "greenhouse",
+    sourceId: "source-2",
     status: "new",
     matchScore: 84,
     postedDate: "2026-06-05",
@@ -139,6 +160,8 @@ export const jobs: Job[] = [
     role: "Principal Product Manager",
     location: "Austin, TX",
     source: "Lever",
+    sourceType: "lever",
+    sourceId: "source-3",
     status: "applied",
     matchScore: 88,
     postedDate: "2026-05-30",
@@ -168,6 +191,8 @@ export const jobs: Job[] = [
     role: "Product Lead",
     location: "New York, NY",
     source: "Indeed",
+    sourceType: "job board",
+    sourceId: "",
     status: "rejected",
     matchScore: 62,
     postedDate: "2026-05-28",
@@ -242,20 +267,38 @@ export const jobSources: JobSource[] = [
     sourceName: "LinkedIn Saved Search",
     sourceType: "job board",
     url: "https://www.linkedin.com/jobs/",
+    companyName: "",
+    companySlug: "",
     enabled: true,
+    lastRunAt: "",
+    lastSuccessAt: "",
+    lastError: "",
+    runCount: 0,
   },
   {
     id: "source-2",
     sourceName: "Greenhouse - Product Roles",
-    sourceType: "company",
-    url: "https://boards.greenhouse.io/",
-    enabled: true,
+    sourceType: "greenhouse",
+    url: "https://boards.greenhouse.io/example",
+    companyName: "Example Greenhouse Company",
+    companySlug: "example",
+    enabled: false,
+    lastRunAt: "",
+    lastSuccessAt: "",
+    lastError: "",
+    runCount: 0,
   },
   {
     id: "source-3",
     sourceName: "Recruiter Digest",
     sourceType: "recruiter",
     url: "https://example.com/recruiter-digest",
+    companyName: "",
+    companySlug: "",
     enabled: false,
+    lastRunAt: "",
+    lastSuccessAt: "",
+    lastError: "",
+    runCount: 0,
   },
 ];

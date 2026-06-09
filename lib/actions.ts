@@ -71,6 +71,8 @@ export type JobSourceInput = {
   sourceName: string;
   sourceType: SourceType;
   url: string;
+  companyName: string;
+  companySlug: string;
   enabled: boolean;
 };
 
@@ -84,6 +86,8 @@ export async function createJobSource(input: JobSourceInput): Promise<ActionResu
     name: input.sourceName,
     source_type: input.sourceType,
     url: input.url,
+    company_name: input.companyName.trim() || null,
+    company_slug: input.companySlug.trim() || null,
     enabled: input.enabled,
   });
 
@@ -115,6 +119,8 @@ export async function updateJobSource(
       name: input.sourceName,
       source_type: input.sourceType,
       url: input.url,
+      company_name: input.companyName.trim() || null,
+      company_slug: input.companySlug.trim() || null,
       enabled: input.enabled,
     })
     .eq("id", numericId);
@@ -146,6 +152,40 @@ export async function deleteJobSource(id: string): Promise<ActionResult> {
 
   revalidatePath("/sources");
   return { ok: true };
+}
+
+export async function runJobFetchForSource(id: string): Promise<ActionResult> {
+  const numericId = Number.parseInt(id, 10);
+  if (Number.isNaN(numericId)) {
+    return { ok: false, message: "Invalid source id." };
+  }
+
+  try {
+    const { fetchJobsForSourceId } = await import("@/workers/job-fetcher/fetch-all");
+    const result = await fetchJobsForSourceId(numericId);
+
+    revalidatePath("/jobs");
+    revalidatePath("/sources");
+    revalidatePath("/dashboard");
+
+    if (result.status === "failed") {
+      return {
+        ok: false,
+        message: result.error ?? "Job fetch failed for this source.",
+      };
+    }
+
+    const { jobsInserted, jobsUpdated, jobsSkipped } = result.summary;
+    return {
+      ok: true,
+      message: `Fetched ${jobsInserted} new and ${jobsUpdated} updated job(s) (${jobsSkipped} skipped).`,
+    };
+  } catch (error) {
+    // Never leak raw stack traces to the user.
+    const message =
+      error instanceof Error ? error.message : "Unable to run job fetch for this source.";
+    return { ok: false, message };
+  }
 }
 
 // --- Jobs ------------------------------------------------------------------

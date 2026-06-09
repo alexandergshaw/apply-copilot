@@ -5,6 +5,7 @@ import type { JobStatus } from "@/lib/mock-data";
 export type JobFilterState = {
   status: "all" | JobStatus;
   source: "all" | string;
+  sourceType: "all" | string;
   minMatchScore: number;
   search: string;
 };
@@ -12,12 +13,13 @@ export type JobFilterState = {
 type JobFiltersProps = {
   filters: JobFilterState;
   sources: string[];
+  sourceTypes: string[];
   onChange: (filters: JobFilterState) => void;
 };
 
-export function JobFilters({ filters, sources, onChange }: JobFiltersProps) {
+export function JobFilters({ filters, sources, sourceTypes, onChange }: JobFiltersProps) {
   return (
-    <section className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4">
+    <section className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-5">
       <label className="text-sm text-slate-700">
         <span className="mb-1 block font-medium">Status</span>
         <select
@@ -44,6 +46,22 @@ export function JobFilters({ filters, sources, onChange }: JobFiltersProps) {
           {sources.map((source) => (
             <option key={source} value={source}>
               {source}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="text-sm text-slate-700">
+        <span className="mb-1 block font-medium">Source type</span>
+        <select
+          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2"
+          value={filters.sourceType}
+          onChange={(event) => onChange({ ...filters, sourceType: event.target.value })}
+        >
+          <option value="all">All</option>
+          {sourceTypes.map((sourceType) => (
+            <option key={sourceType} value={sourceType}>
+              {sourceType}
             </option>
           ))}
         </select>

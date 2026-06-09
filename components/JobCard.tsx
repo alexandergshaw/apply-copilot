@@ -20,6 +20,7 @@ export function JobCard({ job }: JobCardProps) {
       </div>
       <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-600">
         <span>Source: {job.source}</span>
+        {job.sourceType ? <span className="capitalize">Type: {job.sourceType}</span> : null}
         <span>Match: {job.matchScore}%</span>
       </div>
       <p className="mt-4 text-sm text-slate-700">{job.description}</p>

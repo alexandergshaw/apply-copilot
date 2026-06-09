@@ -21,6 +21,19 @@ values
   ('Lever', 'job board', 'https://jobs.lever.co', true),
   ('Direct Referral', 'referral', 'https://example.com/referrals', false);
 
+-- Example job board worker sources (disabled by default — replace slugs with
+-- real company boards before enabling).
+insert into job_sources (name, source_type, url, company_name, company_slug, enabled)
+values
+  (
+    'Example Greenhouse Company',
+    'greenhouse',
+    'https://boards.greenhouse.io/example',
+    'Example Greenhouse Company',
+    'example',
+    false
+  );
+
 -- Jobs
 insert into jobs (source_id, title, company, location, salary, description, apply_url, status, match_score, match_reason)
 values
