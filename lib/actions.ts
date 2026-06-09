@@ -363,6 +363,28 @@ export async function markJobApplied(jobId: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+export async function deleteJob(jobId: string): Promise<ActionResult> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return NOT_CONFIGURED;
+  }
+
+  const numericId = parseJobId(jobId);
+  if (numericId == null) {
+    return { ok: false, message: "Invalid job id." };
+  }
+
+  const { error } = await supabase.from("jobs").delete().eq("id", numericId);
+
+  if (error) {
+    return { ok: false, message: mapRlsErrorMessage(error.message, error.code) };
+  }
+
+  revalidateJob(jobId);
+  revalidatePath("/applications");
+  return { ok: true };
+}
+
 export async function createApplicationPacketPlaceholder(jobId: string): Promise<ActionResult> {
   const supabase = getSupabaseServerClient();
   if (!supabase) {

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DeleteJobButton } from "@/components/jobs/DeleteJobButton";
 import { TailorResumeButton } from "@/components/jobs/TailorResumeButton";
 import type { Job } from "@/lib/mock-data";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -48,6 +49,7 @@ export function JobCard({ job }: JobCardProps) {
             View Posting
           </a>
         ) : null}
+        <DeleteJobButton jobId={job.id} jobRole={job.role} company={job.company} />
       </div>
     </article>
   );
