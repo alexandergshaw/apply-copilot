@@ -50,6 +50,8 @@ const sourceGreenhouse: JobSourceConfig = {
   url: "https://boards.greenhouse.io/acme",
   company_name: "Acme",
   company_slug: "acme",
+  last_run_at: null,
+  fetch_interval_minutes: null,
   enabled: true,
 };
 
@@ -60,6 +62,8 @@ const sourceLever: JobSourceConfig = {
   url: "https://jobs.lever.co/acme",
   company_name: "Acme",
   company_slug: "acme",
+  last_run_at: null,
+  fetch_interval_minutes: null,
   enabled: true,
 };
 
@@ -70,6 +74,8 @@ const sourceAshby: JobSourceConfig = {
   url: "https://api.ashbyhq.com/posting-api/job-board/acme",
   company_name: "Acme",
   company_slug: "acme",
+  last_run_at: null,
+  fetch_interval_minutes: null,
   enabled: true,
 };
 
@@ -224,6 +230,23 @@ describe("fetchAllEnabledJobSources", () => {
     expect(result.results[1].status).toBe("success");
   });
 
+  it("processes only due sources", async () => {
+    mocked.mockLoadEnabledJobSources.mockResolvedValueOnce([
+      sourceGreenhouse,
+      {
+        ...sourceLever,
+        last_run_at: new Date().toISOString(),
+        fetch_interval_minutes: 360,
+      },
+    ]);
+
+    const result = await fetchAllEnabledJobSources();
+
+    expect(result.processed).toBe(1);
+    expect(mocked.mockFetchGreenhouseJobs).toHaveBeenCalledTimes(1);
+    expect(mocked.mockFetchLeverJobs).not.toHaveBeenCalled();
+  });
+
   it("logs a summary line", async () => {
     mocked.mockLoadEnabledJobSources.mockResolvedValueOnce([sourceGreenhouse]);
     const logSpy = vi.spyOn(console, "log");
@@ -242,7 +265,11 @@ describe("fetchJobsForSourceId", () => {
   });
 
   it("processes one source and returns the source result", async () => {
-    mocked.mockLoadJobSourceById.mockResolvedValueOnce(sourceGreenhouse);
+    mocked.mockLoadJobSourceById.mockResolvedValueOnce({
+      ...sourceGreenhouse,
+      last_run_at: new Date().toISOString(),
+      fetch_interval_minutes: 360,
+    });
 
     const result = await fetchJobsForSourceId(1);
 

@@ -23,8 +23,11 @@ type SourceDraft = {
   url: string;
   companyName: string;
   companySlug: string;
+  fetchIntervalMinutes: string;
   enabled: boolean;
 };
+
+const DEFAULT_FETCH_INTERVAL_MINUTES = 360;
 
 const emptySource: SourceDraft = {
   id: "",
@@ -33,6 +36,7 @@ const emptySource: SourceDraft = {
   url: "",
   companyName: "",
   companySlug: "",
+  fetchIntervalMinutes: "",
   enabled: true,
 };
 
@@ -50,6 +54,28 @@ function formatTimestamp(value: string): string {
   }
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function formatIntervalLabel(value: number | null): string {
+  if (value == null) {
+    return `Default (${DEFAULT_FETCH_INTERVAL_MINUTES}m)`;
+  }
+  return `${value}m`;
+}
+
+function formatNextRunDue(lastRunAt: string, fetchIntervalMinutes: number | null): string {
+  if (!lastRunAt) {
+    return "Now";
+  }
+
+  const lastRun = new Date(lastRunAt);
+  if (Number.isNaN(lastRun.getTime())) {
+    return "Now";
+  }
+
+  const intervalMinutes = fetchIntervalMinutes ?? DEFAULT_FETCH_INTERVAL_MINUTES;
+  const nextDue = new Date(lastRun.getTime() + intervalMinutes * 60 * 1000);
+  return nextDue.toLocaleString();
 }
 
 export function SourceForm({ initialSources }: SourceFormProps) {
@@ -93,6 +119,7 @@ export function SourceForm({ initialSources }: SourceFormProps) {
       url: draft.url,
       companyName: draft.companyName,
       companySlug: draft.companySlug,
+      fetchIntervalMinutes: draft.fetchIntervalMinutes,
       enabled: draft.enabled,
     };
 
@@ -110,6 +137,8 @@ export function SourceForm({ initialSources }: SourceFormProps) {
       url: source.url,
       companyName: source.companyName,
       companySlug: source.companySlug,
+      fetchIntervalMinutes:
+        source.fetchIntervalMinutes != null ? String(source.fetchIntervalMinutes) : "",
       enabled: source.enabled,
     });
   };
@@ -192,6 +221,23 @@ export function SourceForm({ initialSources }: SourceFormProps) {
             />
           </label>
 
+          <label className="text-sm text-slate-700">
+            <span className="mb-1 block font-medium">Fetch interval (minutes)</span>
+            <input
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2"
+              type="number"
+              min={1}
+              placeholder={`Default (${DEFAULT_FETCH_INTERVAL_MINUTES})`}
+              value={draft.fetchIntervalMinutes}
+              onChange={(event) =>
+                setDraft({ ...draft, fetchIntervalMinutes: event.target.value })
+              }
+            />
+            <span className="mt-1 block text-xs text-slate-500">
+              Leave blank to use the default cadence.
+            </span>
+          </label>
+
           <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
             <input
               checked={draft.enabled}
@@ -233,6 +279,8 @@ export function SourceForm({ initialSources }: SourceFormProps) {
               <th className="px-4 py-3 font-semibold">Source name</th>
               <th className="px-4 py-3 font-semibold">Type</th>
               <th className="px-4 py-3 font-semibold">Slug</th>
+              <th className="px-4 py-3 font-semibold">Interval</th>
+              <th className="px-4 py-3 font-semibold">Next due</th>
               <th className="px-4 py-3 font-semibold">Enabled</th>
               <th className="px-4 py-3 font-semibold">Last run</th>
               <th className="px-4 py-3 font-semibold">Last success</th>
@@ -249,6 +297,12 @@ export function SourceForm({ initialSources }: SourceFormProps) {
                   <td className="px-4 py-3 font-medium text-slate-900">{source.sourceName}</td>
                   <td className="px-4 py-3 capitalize text-slate-700">{source.sourceType}</td>
                   <td className="px-4 py-3 text-slate-700">{source.companySlug || "—"}</td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {formatIntervalLabel(source.fetchIntervalMinutes)}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {formatNextRunDue(source.lastRunAt, source.fetchIntervalMinutes)}
+                  </td>
                   <td className="px-4 py-3 text-slate-700">{source.enabled ? "Yes" : "No"}</td>
                   <td className="px-4 py-3 text-slate-700">{formatTimestamp(source.lastRunAt)}</td>
                   <td className="px-4 py-3 text-slate-700">

@@ -11,7 +11,9 @@ from `jobs`, fetched roles appear on `/jobs` automatically after each run.
 | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_URL` | Yes | Supabase project URL. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role key. **Server/worker only — never expose to the browser.** |
-| `JOB_FETCH_INTERVAL_MS` | No | Interval for continuous mode (default `21600000` = 6h, minimum `60000`). |
+| `DEFAULT_FETCH_INTERVAL_MINUTES` | No | Default per-source cadence in minutes when a source has no override. Default: `360` (6h). |
+| `JOB_FETCH_SCAN_INTERVAL_MS` | No | Continuous mode scan cadence. Default: `60000` (1m). Sources still run only when due. |
+| `JOB_FETCH_INTERVAL_MS` | No | Legacy continuous mode env (still supported as fallback to `JOB_FETCH_SCAN_INTERVAL_MS`). |
 
 > The worker writes with the service role key so it can bypass RLS. Never use
 > the anon key for worker writes, and never ship the service role key to client
@@ -30,6 +32,9 @@ Run continuously (long-lived process that re-runs on an interval):
 ```bash
 npm run worker:jobs
 ```
+
+Continuous mode runs a frequent scan loop; each source still obeys due-time
+rules based on `fetch_interval_minutes` (or `DEFAULT_FETCH_INTERVAL_MINUTES`).
 
 Exit codes (one-shot `--once` mode):
 
@@ -60,7 +65,19 @@ Exit codes (one-shot `--once` mode):
    `job_sources` row.
 
    Alternatively, deploy a long-running worker service that uses
-   `npm run worker:jobs` and controls cadence via `JOB_FETCH_INTERVAL_MS`.
+   `npm run worker:jobs`, controls scan cadence via
+   `JOB_FETCH_SCAN_INTERVAL_MS`, and controls fetch cadence with
+   per-source `fetch_interval_minutes` (or `DEFAULT_FETCH_INTERVAL_MINUTES`).
+
+## Cadence examples
+
+- Default every 6 hours for all sources:
+  - `DEFAULT_FETCH_INTERVAL_MINUTES=360`
+  - `fetch_interval_minutes = NULL` on each source
+- Run one source hourly:
+  - set that source row `fetch_interval_minutes = 60`
+- Run one source every 15 minutes:
+  - set that source row `fetch_interval_minutes = 15`
 
 ## After a run
 

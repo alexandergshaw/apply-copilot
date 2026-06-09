@@ -157,6 +157,7 @@ export type JobSourceRow = {
   url: string;
   company_name: string | null;
   company_slug: string | null;
+  fetch_interval_minutes: number | null;
   enabled: boolean | null;
   last_run_at: string | null;
   last_success_at: string | null;
@@ -619,6 +620,7 @@ export function mapJobSource(row: JobSourceRow): JobSource {
     url: row.url,
     companyName: row.company_name ?? "",
     companySlug: row.company_slug ?? "",
+    fetchIntervalMinutes: row.fetch_interval_minutes,
     enabled: row.enabled ?? true,
     lastRunAt: toISOStringOrEmpty(row.last_run_at),
     lastSuccessAt: toISOStringOrEmpty(row.last_success_at),

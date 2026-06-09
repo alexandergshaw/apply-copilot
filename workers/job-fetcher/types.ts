@@ -13,6 +13,8 @@ export type JobSourceConfig = {
   url: string;
   company_name: string | null;
   company_slug: string | null;
+  last_run_at: string | null;
+  fetch_interval_minutes: number | null;
   enabled: boolean;
 };
 

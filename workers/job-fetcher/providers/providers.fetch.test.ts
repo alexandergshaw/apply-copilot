@@ -16,6 +16,8 @@ function makeSource(
     url: `https://example.com/${source_type}/acme`,
     company_name: "Example Inc",
     company_slug: "acme",
+    last_run_at: null,
+    fetch_interval_minutes: null,
     enabled: true,
     ...overrides,
   };

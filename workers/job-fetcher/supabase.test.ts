@@ -10,6 +10,8 @@ const source: JobSourceConfig = {
   url: "https://boards.greenhouse.io/example",
   company_name: "Example Co",
   company_slug: "example",
+  last_run_at: null,
+  fetch_interval_minutes: null,
   enabled: true,
 };
 

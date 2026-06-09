@@ -4,6 +4,12 @@ import { fetchAshbyJobs } from "./providers/ashby";
 import { fetchGreenhouseJobs } from "./providers/greenhouse";
 import { fetchLeverJobs } from "./providers/lever";
 import {
+  getEffectiveFetchIntervalMinutes,
+  getNextDueAt,
+  isSourceDue,
+  resolveDefaultFetchIntervalMinutes,
+} from "./scheduling";
+import {
   createFetchRun,
   createServiceClient,
   finishFetchRun,
@@ -127,16 +133,46 @@ function logResult(result: SourceRunResult): void {
 export async function fetchAllEnabledJobSources(): Promise<FetchAllResult> {
   const client = createServiceClient();
   const sources = await loadEnabledJobSources(client);
+  const defaultFetchIntervalMinutes = resolveDefaultFetchIntervalMinutes();
+  const now = new Date();
 
   if (sources.length === 0) {
     console.log("[job-fetcher] No enabled job board sources to process.");
     return { processed: 0, succeeded: 0, failed: 0, results: [] };
   }
 
-  console.log(`[job-fetcher] Processing ${sources.length} source(s)...`);
+  const dueSources = sources.filter((source) =>
+    isSourceDue(source, now, defaultFetchIntervalMinutes),
+  );
+  const notDueSources = sources.filter(
+    (source) => !isSourceDue(source, now, defaultFetchIntervalMinutes),
+  );
+
+  console.log(
+    `[job-fetcher] ${dueSources.length} source(s) due, ${notDueSources.length} source(s) skipped (not due).`,
+  );
+
+  for (const source of notDueSources) {
+    const effectiveMinutes = getEffectiveFetchIntervalMinutes(
+      source,
+      defaultFetchIntervalMinutes,
+    );
+    const nextDueAt = getNextDueAt(source, now, defaultFetchIntervalMinutes);
+    console.log(
+      `[job-fetcher] Skipping ${source.name} (${source.source_type}) until ` +
+        `${nextDueAt ? nextDueAt.toISOString() : "next run"} ` +
+        `(interval ${effectiveMinutes}m).`,
+    );
+  }
+
+  if (dueSources.length === 0) {
+    return { processed: 0, succeeded: 0, failed: 0, results: [] };
+  }
+
+  console.log(`[job-fetcher] Processing ${dueSources.length} due source(s)...`);
 
   const results: SourceRunResult[] = [];
-  for (const source of sources) {
+  for (const source of dueSources) {
     const result = await processSource(client, source);
     logResult(result);
     results.push(result);

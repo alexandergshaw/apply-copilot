@@ -73,6 +73,8 @@ type JobSourceConfigRow = {
   url: string;
   company_name: string | null;
   company_slug: string | null;
+  last_run_at: string | null;
+  fetch_interval_minutes: number | null;
   enabled: boolean | null;
 };
 
@@ -87,11 +89,14 @@ function toConfig(row: JobSourceConfigRow): JobSourceConfig | null {
     url: row.url,
     company_name: row.company_name,
     company_slug: row.company_slug,
+    last_run_at: row.last_run_at,
+    fetch_interval_minutes: row.fetch_interval_minutes,
     enabled: row.enabled ?? false,
   };
 }
 
-const SOURCE_COLUMNS = "id, name, source_type, url, company_name, company_slug, enabled";
+const SOURCE_COLUMNS =
+  "id, name, source_type, url, company_name, company_slug, last_run_at, fetch_interval_minutes, enabled";
 
 /**
  * Load all enabled job sources whose source_type is a supported job board.

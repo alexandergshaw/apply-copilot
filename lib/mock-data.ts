@@ -84,6 +84,7 @@ export type JobSource = {
   url: string;
   companyName: string;
   companySlug: string;
+  fetchIntervalMinutes: number | null;
   enabled: boolean;
   lastRunAt: string;
   lastSuccessAt: string;
@@ -269,6 +270,7 @@ export const jobSources: JobSource[] = [
     url: "https://www.linkedin.com/jobs/",
     companyName: "",
     companySlug: "",
+    fetchIntervalMinutes: null,
     enabled: true,
     lastRunAt: "",
     lastSuccessAt: "",
@@ -282,6 +284,7 @@ export const jobSources: JobSource[] = [
     url: "https://boards.greenhouse.io/example",
     companyName: "Example Greenhouse Company",
     companySlug: "example",
+    fetchIntervalMinutes: null,
     enabled: false,
     lastRunAt: "",
     lastSuccessAt: "",
@@ -295,6 +298,7 @@ export const jobSources: JobSource[] = [
     url: "https://example.com/recruiter-digest",
     companyName: "",
     companySlug: "",
+    fetchIntervalMinutes: null,
     enabled: false,
     lastRunAt: "",
     lastSuccessAt: "",

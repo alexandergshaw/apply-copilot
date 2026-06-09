@@ -20,6 +20,8 @@ function makeSource(source_type: JobSourceConfig["source_type"]): JobSourceConfi
     url: `https://example.com/${source_type}/example`,
     company_name: "Example Co",
     company_slug: "example",
+    last_run_at: null,
+    fetch_interval_minutes: null,
     enabled: true,
   };
 }

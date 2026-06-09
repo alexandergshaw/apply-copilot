@@ -71,6 +71,8 @@ function makeSource(overrides: Partial<JobSourceConfig> = {}): JobSourceConfig {
     url: "https://boards.greenhouse.io/acme",
     company_name: "Acme",
     company_slug: "acme",
+    last_run_at: null,
+    fetch_interval_minutes: null,
     enabled: true,
     ...overrides,
   };

@@ -7,21 +7,21 @@
 import { fetchAllEnabledJobSources } from "./fetch-all";
 import { WorkerConfigError } from "./supabase";
 
-const DEFAULT_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
-const MIN_INTERVAL_MS = 60 * 1000; // 1 minute
+const DEFAULT_SCAN_INTERVAL_MS = 60 * 1000; // 1 minute
+const MIN_SCAN_INTERVAL_MS = 1 * 1000; // 1 second
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function resolveIntervalMs(): number {
-  const raw = process.env.JOB_FETCH_INTERVAL_MS;
+function resolveScanIntervalMs(): number {
+  const raw = process.env.JOB_FETCH_SCAN_INTERVAL_MS ?? process.env.JOB_FETCH_INTERVAL_MS;
   if (!raw) {
-    return DEFAULT_INTERVAL_MS;
+    return DEFAULT_SCAN_INTERVAL_MS;
   }
   const parsed = Number.parseInt(raw, 10);
-  if (Number.isNaN(parsed) || parsed < MIN_INTERVAL_MS) {
-    return DEFAULT_INTERVAL_MS;
+  if (Number.isNaN(parsed) || parsed < MIN_SCAN_INTERVAL_MS) {
+    return DEFAULT_SCAN_INTERVAL_MS;
   }
   return parsed;
 }
@@ -38,8 +38,10 @@ async function main(): Promise<void> {
     process.exit(allFailed ? 1 : 0);
   }
 
-  const intervalMs = resolveIntervalMs();
-  console.log(`[job-fetcher] Continuous mode enabled. Re-running every ${intervalMs} ms.`);
+  const intervalMs = resolveScanIntervalMs();
+  console.log(
+    `[job-fetcher] Continuous mode enabled. Scanning every ${intervalMs} ms (due sources only).`,
+  );
 
   setInterval(() => {
     fetchAllEnabledJobSources().catch((error) => {

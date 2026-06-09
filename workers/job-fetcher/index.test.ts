@@ -31,6 +31,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   fetchAllEnabledJobSourcesMock.mockReset();
   delete process.env.JOB_FETCH_INTERVAL_MS;
+  delete process.env.JOB_FETCH_SCAN_INTERVAL_MS;
 });
 
 describe("job-fetcher CLI entrypoint", () => {
@@ -88,7 +89,7 @@ describe("job-fetcher CLI entrypoint", () => {
     expect(exitSpy).toHaveBeenCalledWith(0);
   });
 
-  it("schedules interval in continuous mode using default interval", async () => {
+  it("schedules interval in continuous mode using default scan interval", async () => {
     fetchAllEnabledJobSourcesMock.mockResolvedValue({
       processed: 0,
       succeeded: 0,
@@ -108,13 +109,13 @@ describe("job-fetcher CLI entrypoint", () => {
       await importEntrypoint();
     });
 
-    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 21600000);
+    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 60000);
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Continuous mode enabled"));
     expect(exitSpy).not.toHaveBeenCalled();
   });
 
-  it("uses configured JOB_FETCH_INTERVAL_MS when >= 1 minute", async () => {
-    process.env.JOB_FETCH_INTERVAL_MS = "120000";
+  it("uses configured JOB_FETCH_SCAN_INTERVAL_MS when valid", async () => {
+    process.env.JOB_FETCH_SCAN_INTERVAL_MS = "120000";
     fetchAllEnabledJobSourcesMock.mockResolvedValue({
       processed: 0,
       succeeded: 0,
@@ -132,8 +133,8 @@ describe("job-fetcher CLI entrypoint", () => {
     expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 120000);
   });
 
-  it("falls back to default interval when configured value is too small", async () => {
-    process.env.JOB_FETCH_INTERVAL_MS = "500";
+  it("falls back to default scan interval when configured value is too small", async () => {
+    process.env.JOB_FETCH_SCAN_INTERVAL_MS = "500";
     fetchAllEnabledJobSourcesMock.mockResolvedValue({
       processed: 0,
       succeeded: 0,
@@ -148,7 +149,7 @@ describe("job-fetcher CLI entrypoint", () => {
       await importEntrypoint();
     });
 
-    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 21600000);
+    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 60000);
   });
 
   it("exits 1 and logs configuration error when fetch throws WorkerConfigError", async () => {

@@ -73,8 +73,23 @@ export type JobSourceInput = {
   url: string;
   companyName: string;
   companySlug: string;
+  fetchIntervalMinutes: string;
   enabled: boolean;
 };
+
+function parseFetchIntervalMinutes(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
+}
 
 export async function createJobSource(input: JobSourceInput): Promise<ActionResult> {
   const supabase = getSupabaseServerClient();
@@ -88,6 +103,7 @@ export async function createJobSource(input: JobSourceInput): Promise<ActionResu
     url: input.url,
     company_name: input.companyName.trim() || null,
     company_slug: input.companySlug.trim() || null,
+    fetch_interval_minutes: parseFetchIntervalMinutes(input.fetchIntervalMinutes),
     enabled: input.enabled,
   });
 
@@ -121,6 +137,7 @@ export async function updateJobSource(
       url: input.url,
       company_name: input.companyName.trim() || null,
       company_slug: input.companySlug.trim() || null,
+      fetch_interval_minutes: parseFetchIntervalMinutes(input.fetchIntervalMinutes),
       enabled: input.enabled,
     })
     .eq("id", numericId);
