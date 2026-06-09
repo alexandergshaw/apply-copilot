@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AutoApplyNowButton } from "@/components/jobs/AutoApplyNowButton";
+import { AutoApplyStatusBadge } from "@/components/jobs/AutoApplyStatusBadge";
 import { DeleteJobButton } from "@/components/jobs/DeleteJobButton";
 import { TailorResumeButton } from "@/components/jobs/TailorResumeButton";
 import type { Job } from "@/lib/mock-data";
@@ -18,7 +19,10 @@ export function JobCard({ job }: JobCardProps) {
           <h3 className="text-lg font-semibold text-slate-900">{job.role}</h3>
           <p className="text-sm text-slate-600">{job.company} · {job.location}</p>
         </div>
-        <StatusBadge status={job.status} />
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge status={job.status} />
+          <AutoApplyStatusBadge status={job.autoApplyStatus} />
+        </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-600">
         <span>Source: {job.source}</span>

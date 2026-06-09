@@ -187,8 +187,8 @@ export default async function JobDetailsPage({ params }: JobDetailsProps) {
         <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2">
           <h2 className="text-base font-semibold text-slate-900">Short-answer drafts</h2>
           <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-slate-700">
-            {job.shortAnswerDrafts.map((draft) => (
-              <li key={draft}>{draft}</li>
+            {job.shortAnswerDrafts.map((draft, index) => (
+              <li key={`${index}-${draft}`}>{draft}</li>
             ))}
           </ul>
         </article>

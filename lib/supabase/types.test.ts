@@ -37,6 +37,31 @@ describe("mapJob apply_url mapping", () => {
     const job = mapJob(createJobRow({ apply_url: null }));
     expect(job.applyUrl).toBeNull();
   });
+
+  it("maps structured short_answers into readable drafts", () => {
+    const job = mapJob({
+      ...createJobRow(),
+      application_packets: {
+        id: 1,
+        job_id: 101,
+        tailored_resume: null,
+        tailoring_notes: null,
+        cover_letter: null,
+        short_answers: [
+          { question: "What is your full name?", answer: "Ada Lovelace" },
+          { question: "Share your LinkedIn profile.", answer: "https://linkedin.com/in/ada" },
+        ],
+        risk_notes: null,
+        created_at: null,
+        updated_at: null,
+      },
+    });
+
+    expect(job.shortAnswerDrafts).toEqual([
+      "Q: What is your full name? A: Ada Lovelace",
+      "Q: Share your LinkedIn profile. A: https://linkedin.com/in/ada",
+    ]);
+  });
 });
 
 describe("mapJobSource filter mapping", () => {

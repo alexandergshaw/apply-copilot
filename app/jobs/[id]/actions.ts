@@ -378,6 +378,74 @@ function buildCoverLetter(input: {
     .join("\n");
 }
 
+type ShortAnswer = {
+  question: string;
+  answer: string;
+};
+
+function buildShortAnswers(input: {
+  profile: {
+    name: string;
+    email: string;
+    phone: string;
+    location: string;
+    linkedinUrl: string;
+    portfolioUrl: string;
+    githubUrl: string;
+    summary: string;
+    skills: string[];
+  };
+  job: {
+    title: string;
+    company: string | null;
+  };
+}): ShortAnswer[] {
+  const { profile, job } = input;
+
+  return [
+    {
+      question: "What is your full name?",
+      answer: profile.name || "Not provided",
+    },
+    {
+      question: "What email should we use to contact you?",
+      answer: profile.email || "Not provided",
+    },
+    {
+      question: "What phone number should we use to contact you?",
+      answer: profile.phone || "Not provided",
+    },
+    {
+      question: "Where are you currently located?",
+      answer: profile.location || "Not provided",
+    },
+    {
+      question: "Share your LinkedIn profile.",
+      answer: profile.linkedinUrl || "Not provided",
+    },
+    {
+      question: "Share your portfolio website.",
+      answer: profile.portfolioUrl || "Not provided",
+    },
+    {
+      question: "Share your GitHub profile.",
+      answer: profile.githubUrl || "Not provided",
+    },
+    {
+      question: "Why are you interested in this role?",
+      answer: `I am excited about the ${job.title} role at ${job.company ?? "your company"} because it aligns with my product background and the impact described in the posting.`,
+    },
+    {
+      question: "What are your strongest relevant skills?",
+      answer: profile.skills.length > 0 ? profile.skills.slice(0, 6).join(", ") : "Not provided",
+    },
+    {
+      question: "Give a brief professional summary.",
+      answer: profile.summary || "Not provided",
+    },
+  ];
+}
+
 async function updateAutoApplyRunStatus(
   runId: number | null,
   status: string,
@@ -523,15 +591,43 @@ export async function autoApplyNow(jobId: string): Promise<ActionResult> {
     tailoredResumeText: tailoredResume.tailored_text,
   });
 
-  const shortAnswers = [
-    `Name: ${profile.name || "Not provided"}`,
-    `Email: ${profile.email || "Not provided"}`,
-    `Phone: ${profile.phone || "Not provided"}`,
-    `Location: ${profile.location || "Not provided"}`,
-    `LinkedIn: ${profile.linkedinUrl || "Not provided"}`,
-    `Portfolio: ${profile.portfolioUrl || "Not provided"}`,
-    `GitHub: ${profile.githubUrl || "Not provided"}`,
-  ];
+  const shortAnswers = buildShortAnswers({
+    profile: {
+      name: profile.name,
+      email: profile.email,
+      phone: profile.phone,
+      location: profile.location,
+      linkedinUrl: profile.linkedinUrl,
+      portfolioUrl: profile.portfolioUrl,
+      githubUrl: profile.githubUrl,
+      summary: profile.summary,
+      skills: profile.skills,
+    },
+    job,
+  });
+
+  const missingRequiredFields: string[] = [];
+  if (!profile.name.trim()) {
+    missingRequiredFields.push("name");
+  }
+  if (!profile.email.trim()) {
+    missingRequiredFields.push("email");
+  }
+  if (!profile.phone.trim()) {
+    missingRequiredFields.push("phone");
+  }
+  if (!profile.location.trim()) {
+    missingRequiredFields.push("location");
+  }
+  if (!profile.linkedinUrl.trim()) {
+    missingRequiredFields.push("LinkedIn URL");
+  }
+  if (!tailoredResume.tailored_text.trim()) {
+    missingRequiredFields.push("tailored resume text");
+  }
+  if (!coverLetter.trim()) {
+    missingRequiredFields.push("cover letter");
+  }
 
   const packetPayload = {
     job_id: numericJobId,
@@ -539,7 +635,10 @@ export async function autoApplyNow(jobId: string): Promise<ActionResult> {
     tailoring_notes: tailoredResume.tailoring_notes ?? "Generated via auto-apply.",
     cover_letter: coverLetter,
     short_answers: shortAnswers,
-    risk_notes: "Auto-generated packet. Review before external submission if needed.",
+    risk_notes:
+      missingRequiredFields.length > 0
+        ? `Needs review before submission. Missing required fields: ${missingRequiredFields.join(", ")}.`
+        : "Auto-generated packet. Review before external submission if needed.",
   };
 
   const { data: existingPacket } = await supabase
@@ -571,6 +670,27 @@ export async function autoApplyNow(jobId: string): Promise<ActionResult> {
   }
 
   const packetId = packetRows?.[0]?.id ?? existingPacket?.id ?? null;
+
+  if (missingRequiredFields.length > 0) {
+    const message =
+      `Auto-apply paused for review. Missing required fields: ${missingRequiredFields.join(", ")}.`;
+
+    await supabase
+      .from("jobs")
+      .update({
+        auto_apply_status: "needs_review",
+        auto_apply_error: message,
+      })
+      .eq("id", numericJobId);
+
+    await updateAutoApplyRunStatus(runId, "needs_review", message);
+    revalidateJobPaths(jobId);
+
+    return {
+      ok: true,
+      message,
+    };
+  }
 
   const { data: existingApplication } = await supabase
     .from("applications")

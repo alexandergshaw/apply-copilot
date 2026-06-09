@@ -502,7 +502,27 @@ function parseJsonObject(value: unknown): Record<string, unknown> {
 
 function parseShortAnswers(value: unknown): string[] {
   if (Array.isArray(value)) {
-    return value.map((entry) => String(entry));
+    return value.map((entry) => {
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        const candidate = entry as Record<string, unknown>;
+        const question = typeof candidate.question === "string" ? candidate.question.trim() : "";
+        const answer = typeof candidate.answer === "string" ? candidate.answer.trim() : "";
+
+        if (question && answer) {
+          return `Q: ${question} A: ${answer}`;
+        }
+
+        if (question) {
+          return `Q: ${question}`;
+        }
+
+        if (answer) {
+          return `A: ${answer}`;
+        }
+      }
+
+      return String(entry);
+    });
   }
   if (typeof value === "string") {
     try {
