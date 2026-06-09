@@ -75,6 +75,8 @@ type JobSourceConfigRow = {
   company_slug: string | null;
   last_run_at: string | null;
   fetch_interval_minutes: number | null;
+  remote_only: boolean | null;
+  posted_within_days: number | null;
   enabled: boolean | null;
 };
 
@@ -91,12 +93,14 @@ function toConfig(row: JobSourceConfigRow): JobSourceConfig | null {
     company_slug: row.company_slug,
     last_run_at: row.last_run_at,
     fetch_interval_minutes: row.fetch_interval_minutes,
+    remote_only: row.remote_only ?? true,
+    posted_within_days: row.posted_within_days ?? 1,
     enabled: row.enabled ?? false,
   };
 }
 
 const SOURCE_COLUMNS =
-  "id, name, source_type, url, company_name, company_slug, last_run_at, fetch_interval_minutes, enabled";
+  "id, name, source_type, url, company_name, company_slug, last_run_at, fetch_interval_minutes, remote_only, posted_within_days, enabled";
 
 /**
  * Load all enabled job sources whose source_type is a supported job board.

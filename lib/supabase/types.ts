@@ -158,6 +158,8 @@ export type JobSourceRow = {
   company_name: string | null;
   company_slug: string | null;
   fetch_interval_minutes: number | null;
+  remote_only: boolean | null;
+  posted_within_days: number | null;
   enabled: boolean | null;
   last_run_at: string | null;
   last_success_at: string | null;
@@ -621,6 +623,8 @@ export function mapJobSource(row: JobSourceRow): JobSource {
     companyName: row.company_name ?? "",
     companySlug: row.company_slug ?? "",
     fetchIntervalMinutes: row.fetch_interval_minutes,
+    remoteOnly: row.remote_only ?? true,
+    postedWithinDays: row.posted_within_days ?? 1,
     enabled: row.enabled ?? true,
     lastRunAt: toISOStringOrEmpty(row.last_run_at),
     lastSuccessAt: toISOStringOrEmpty(row.last_success_at),

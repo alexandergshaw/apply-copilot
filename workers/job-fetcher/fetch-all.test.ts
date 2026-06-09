@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { JobSourceConfig, UpsertSummary } from "./types";
+import type { JobSourceConfig, NormalizedJobPosting, UpsertSummary } from "./types";
 
 const mocked = vi.hoisted(() => ({
   mockFetchGreenhouseJobs: vi.fn(),
@@ -38,6 +38,7 @@ vi.mock("./supabase", () => ({
 }));
 
 import {
+  filterPostingsForSource,
   fetchAllEnabledJobSources,
   fetchJobsForSourceId,
   processSource,
@@ -52,6 +53,8 @@ const sourceGreenhouse: JobSourceConfig = {
   company_slug: "acme",
   last_run_at: null,
   fetch_interval_minutes: null,
+  remote_only: true,
+  posted_within_days: 1,
   enabled: true,
 };
 
@@ -64,6 +67,8 @@ const sourceLever: JobSourceConfig = {
   company_slug: "acme",
   last_run_at: null,
   fetch_interval_minutes: null,
+  remote_only: true,
+  posted_within_days: 1,
   enabled: true,
 };
 
@@ -76,6 +81,8 @@ const sourceAshby: JobSourceConfig = {
   company_slug: "acme",
   last_run_at: null,
   fetch_interval_minutes: null,
+  remote_only: true,
+  posted_within_days: 1,
   enabled: true,
 };
 
@@ -286,5 +293,58 @@ describe("fetchJobsForSourceId", () => {
 
     expect(result.status).toBe("failed");
     expect(result.error).toContain("cannot create run");
+  });
+});
+
+describe("filterPostingsForSource", () => {
+  it("keeps only remote jobs posted within configured window", () => {
+    const now = new Date("2026-06-09T12:00:00.000Z");
+    const postings: NormalizedJobPosting[] = [
+      {
+        title: "Remote Engineer",
+        company: "Acme",
+        location: "Remote",
+        salary: null,
+        description: null,
+        apply_url: "https://example.com/1",
+        source_job_id: "1",
+        raw: { postedAt: "2026-06-09T08:00:00.000Z" },
+      },
+      {
+        title: "Hybrid Engineer",
+        company: "Acme",
+        location: "Austin, TX",
+        salary: null,
+        description: null,
+        apply_url: "https://example.com/2",
+        source_job_id: "2",
+        raw: { postedAt: "2026-06-09T08:00:00.000Z", workplaceType: "Onsite" },
+      },
+      {
+        title: "Remote PM",
+        company: "Acme",
+        location: "Remote",
+        salary: null,
+        description: null,
+        apply_url: "https://example.com/3",
+        source_job_id: "3",
+        raw: { postedAt: "2026-06-01T08:00:00.000Z" },
+      },
+      {
+        title: "Remote Designer",
+        company: "Acme",
+        location: "Remote",
+        salary: null,
+        description: null,
+        apply_url: "https://example.com/4",
+        source_job_id: "4",
+        raw: {},
+      },
+    ];
+
+    const filtered = filterPostingsForSource(sourceGreenhouse, postings, now);
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.apply_url).toBe("https://example.com/1");
   });
 });

@@ -28,6 +28,22 @@ const EMPTY_SUMMARY: UpsertSummary = {
   jobsSkipped: 0,
 };
 
+const REMOTE_PATTERN = /\b(remote|work\s*from\s*home|wfh|anywhere)\b/i;
+
+const POSTED_AT_CANDIDATE_KEYS = [
+  "posted_at",
+  "postedAt",
+  "published_at",
+  "publishedAt",
+  "created_at",
+  "createdAt",
+  "updated_at",
+  "updatedAt",
+  "date",
+  "listed_at",
+  "listedAt",
+] as const;
+
 export type FetchAllResult = {
   processed: number;
   succeeded: number;
@@ -52,6 +68,104 @@ function fetchPostingsForSource(source: JobSourceConfig): Promise<NormalizedJobP
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function toDate(value: unknown): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === "number") {
+    const fromMs = new Date(value);
+    if (!Number.isNaN(fromMs.getTime())) {
+      return fromMs;
+    }
+    return null;
+  }
+
+  if (typeof value === "string") {
+    const fromIso = new Date(value);
+    return Number.isNaN(fromIso.getTime()) ? null : fromIso;
+  }
+
+  return null;
+}
+
+function pickRawDate(raw: unknown): Date | null {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const asRecord = raw as Record<string, unknown>;
+  for (const key of POSTED_AT_CANDIDATE_KEYS) {
+    const parsed = toDate(asRecord[key]);
+    if (parsed) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function isRemotePosting(posting: NormalizedJobPosting): boolean {
+  const location = posting.location ?? "";
+  const title = posting.title ?? "";
+  const description = posting.description ?? "";
+
+  if (
+    REMOTE_PATTERN.test(location) ||
+    REMOTE_PATTERN.test(title) ||
+    REMOTE_PATTERN.test(description)
+  ) {
+    return true;
+  }
+
+  if (!posting.raw || typeof posting.raw !== "object") {
+    return false;
+  }
+
+  const raw = posting.raw as Record<string, unknown>;
+  const workplaceCandidates = [
+    raw.workplaceType,
+    raw.workplace_type,
+    raw.workplace,
+    raw.workplacePreference,
+    raw.locationType,
+  ];
+
+  return workplaceCandidates.some((value) =>
+    typeof value === "string" ? /remote/i.test(value) : false,
+  );
+}
+
+export function filterPostingsForSource(
+  source: JobSourceConfig,
+  postings: NormalizedJobPosting[],
+  now: Date = new Date(),
+): NormalizedJobPosting[] {
+  const cutoff = new Date(now.getTime() - source.posted_within_days * 24 * 60 * 60 * 1000);
+
+  return postings.filter((posting) => {
+    if (source.remote_only && !isRemotePosting(posting)) {
+      return false;
+    }
+
+    if (source.posted_within_days >= 1) {
+      const postedAt = pickRawDate(posting.raw);
+      if (!postedAt) {
+        return false;
+      }
+      if (postedAt < cutoff) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 }
 
 /**
@@ -79,7 +193,8 @@ export async function processSource(
 
   try {
     const postings = await fetchPostingsForSource(source);
-    const summary = await upsertNormalizedJobs(client, source, postings);
+    const filteredPostings = filterPostingsForSource(source, postings);
+    const summary = await upsertNormalizedJobs(client, source, filteredPostings);
     await finishFetchRun(client, runId, "success", summary, null);
     await updateSourceAfterRun(client, source, true, null);
     return {

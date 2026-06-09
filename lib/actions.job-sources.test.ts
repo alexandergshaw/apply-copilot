@@ -13,7 +13,11 @@ vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
 }));
 
-import { createJobSource, updateJobSource } from "./actions";
+import {
+  applyDefaultFiltersToAllJobSources,
+  createJobSource,
+  updateJobSource,
+} from "./actions";
 
 function createSupabaseMock() {
   const insertMock = vi.fn().mockResolvedValue({ error: null });
@@ -55,6 +59,8 @@ describe("job source interval mapping", () => {
       companyName: "Acme",
       companySlug: "acme",
       fetchIntervalMinutes: "15",
+      remoteOnly: true,
+      postedWithinDays: "1",
       enabled: true,
     });
 
@@ -62,6 +68,8 @@ describe("job source interval mapping", () => {
     expect(supabase.insertMock).toHaveBeenCalledWith(
       expect.objectContaining({
         fetch_interval_minutes: 15,
+        remote_only: true,
+        posted_within_days: 1,
       }),
     );
   });
@@ -77,6 +85,8 @@ describe("job source interval mapping", () => {
       companyName: "Acme",
       companySlug: "acme",
       fetchIntervalMinutes: "",
+      remoteOnly: true,
+      postedWithinDays: "",
       enabled: true,
     });
 
@@ -84,6 +94,7 @@ describe("job source interval mapping", () => {
     expect(supabase.insertMock).toHaveBeenCalledWith(
       expect.objectContaining({
         fetch_interval_minutes: null,
+        posted_within_days: 1,
       }),
     );
   });
@@ -99,6 +110,8 @@ describe("job source interval mapping", () => {
       companyName: "Acme",
       companySlug: "acme",
       fetchIntervalMinutes: "0",
+      remoteOnly: false,
+      postedWithinDays: "0",
       enabled: true,
     });
 
@@ -106,7 +119,22 @@ describe("job source interval mapping", () => {
     expect(supabase.updateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         fetch_interval_minutes: null,
+        remote_only: false,
+        posted_within_days: 1,
       }),
     );
+  });
+
+  it("applies default filters to all job sources", async () => {
+    const supabase = createSupabaseMock();
+    getSupabaseServerClientMock.mockReturnValue(supabase.client);
+
+    const result = await applyDefaultFiltersToAllJobSources();
+
+    expect(result.ok).toBe(true);
+    expect(supabase.updateMock).toHaveBeenCalledWith({
+      remote_only: true,
+      posted_within_days: 1,
+    });
   });
 });

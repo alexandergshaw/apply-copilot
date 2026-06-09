@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import {
+  applyDefaultFiltersToAllJobSources,
   createJobSource,
   deleteJobSource,
   runJobFetchForSource,
@@ -24,6 +25,8 @@ type SourceDraft = {
   companyName: string;
   companySlug: string;
   fetchIntervalMinutes: string;
+  remoteOnly: boolean;
+  postedWithinDays: string;
   enabled: boolean;
 };
 
@@ -37,6 +40,8 @@ const emptySource: SourceDraft = {
   companyName: "",
   companySlug: "",
   fetchIntervalMinutes: "",
+  remoteOnly: true,
+  postedWithinDays: "1",
   enabled: true,
 };
 
@@ -120,6 +125,8 @@ export function SourceForm({ initialSources }: SourceFormProps) {
       companyName: draft.companyName,
       companySlug: draft.companySlug,
       fetchIntervalMinutes: draft.fetchIntervalMinutes,
+      remoteOnly: draft.remoteOnly,
+      postedWithinDays: draft.postedWithinDays,
       enabled: draft.enabled,
     };
 
@@ -139,6 +146,8 @@ export function SourceForm({ initialSources }: SourceFormProps) {
       companySlug: source.companySlug,
       fetchIntervalMinutes:
         source.fetchIntervalMinutes != null ? String(source.fetchIntervalMinutes) : "",
+      remoteOnly: source.remoteOnly,
+      postedWithinDays: String(source.postedWithinDays),
       enabled: source.enabled,
     });
   };
@@ -156,6 +165,10 @@ export function SourceForm({ initialSources }: SourceFormProps) {
 
   const runFetch = (id: string) => {
     runAction(() => runJobFetchForSource(id), undefined, true);
+  };
+
+  const applyDefaultsToAllSources = () => {
+    runAction(() => applyDefaultFiltersToAllJobSources(), undefined, true);
   };
 
   return (
@@ -240,6 +253,29 @@ export function SourceForm({ initialSources }: SourceFormProps) {
 
           <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
             <input
+              checked={draft.remoteOnly}
+              type="checkbox"
+              onChange={(event) => setDraft({ ...draft, remoteOnly: event.target.checked })}
+            />
+            Remote jobs only
+          </label>
+
+          <label className="text-sm text-slate-700">
+            <span className="mb-1 block font-medium">Posted within days</span>
+            <input
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2"
+              type="number"
+              min={1}
+              value={draft.postedWithinDays}
+              onChange={(event) => setDraft({ ...draft, postedWithinDays: event.target.value })}
+            />
+            <span className="mt-1 block text-xs text-slate-500">
+              Jobs missing posted date are skipped when this filter is set.
+            </span>
+          </label>
+
+          <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input
               checked={draft.enabled}
               type="checkbox"
               onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
@@ -264,6 +300,14 @@ export function SourceForm({ initialSources }: SourceFormProps) {
           >
             Clear
           </button>
+          <button
+            className="rounded-md border border-indigo-300 px-4 py-2 text-sm font-medium text-indigo-700 disabled:opacity-60"
+            type="button"
+            disabled={isPending}
+            onClick={applyDefaultsToAllSources}
+          >
+            Apply defaults to all sources
+          </button>
         </div>
         {message ? (
           <p className={`mt-3 text-sm ${isError ? "text-amber-700" : "text-emerald-700"}`}>
@@ -280,6 +324,8 @@ export function SourceForm({ initialSources }: SourceFormProps) {
               <th className="px-4 py-3 font-semibold">Type</th>
               <th className="px-4 py-3 font-semibold">Slug</th>
               <th className="px-4 py-3 font-semibold">Interval</th>
+              <th className="px-4 py-3 font-semibold">Remote only</th>
+              <th className="px-4 py-3 font-semibold">Posted within</th>
               <th className="px-4 py-3 font-semibold">Next due</th>
               <th className="px-4 py-3 font-semibold">Enabled</th>
               <th className="px-4 py-3 font-semibold">Last run</th>
@@ -300,6 +346,8 @@ export function SourceForm({ initialSources }: SourceFormProps) {
                   <td className="px-4 py-3 text-slate-700">
                     {formatIntervalLabel(source.fetchIntervalMinutes)}
                   </td>
+                  <td className="px-4 py-3 text-slate-700">{source.remoteOnly ? "Yes" : "No"}</td>
+                  <td className="px-4 py-3 text-slate-700">{source.postedWithinDays} day(s)</td>
                   <td className="px-4 py-3 text-slate-700">
                     {formatNextRunDue(source.lastRunAt, source.fetchIntervalMinutes)}
                   </td>

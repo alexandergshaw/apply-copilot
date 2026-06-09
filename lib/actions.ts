@@ -74,6 +74,8 @@ export type JobSourceInput = {
   companyName: string;
   companySlug: string;
   fetchIntervalMinutes: string;
+  remoteOnly: boolean;
+  postedWithinDays: string;
   enabled: boolean;
 };
 
@@ -86,6 +88,20 @@ function parseFetchIntervalMinutes(value: string): number | null {
   const parsed = Number.parseInt(trimmed, 10);
   if (Number.isNaN(parsed) || parsed <= 0) {
     return null;
+  }
+
+  return parsed;
+}
+
+function parsePostedWithinDays(value: string): number {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return 1;
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return 1;
   }
 
   return parsed;
@@ -104,6 +120,8 @@ export async function createJobSource(input: JobSourceInput): Promise<ActionResu
     company_name: input.companyName.trim() || null,
     company_slug: input.companySlug.trim() || null,
     fetch_interval_minutes: parseFetchIntervalMinutes(input.fetchIntervalMinutes),
+    remote_only: input.remoteOnly,
+    posted_within_days: parsePostedWithinDays(input.postedWithinDays),
     enabled: input.enabled,
   });
 
@@ -138,6 +156,8 @@ export async function updateJobSource(
       company_name: input.companyName.trim() || null,
       company_slug: input.companySlug.trim() || null,
       fetch_interval_minutes: parseFetchIntervalMinutes(input.fetchIntervalMinutes),
+      remote_only: input.remoteOnly,
+      posted_within_days: parsePostedWithinDays(input.postedWithinDays),
       enabled: input.enabled,
     })
     .eq("id", numericId);
@@ -169,6 +189,24 @@ export async function deleteJobSource(id: string): Promise<ActionResult> {
 
   revalidatePath("/sources");
   return { ok: true };
+}
+
+export async function applyDefaultFiltersToAllJobSources(): Promise<ActionResult> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return NOT_CONFIGURED;
+  }
+
+  const { error } = await supabase
+    .from("job_sources")
+    .update({ remote_only: true, posted_within_days: 1 });
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
+  revalidatePath("/sources");
+  return { ok: true, message: "Applied default filters to all sources." };
 }
 
 export async function runJobFetchForSource(id: string): Promise<ActionResult> {

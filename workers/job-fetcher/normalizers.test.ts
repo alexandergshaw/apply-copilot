@@ -22,6 +22,8 @@ function makeSource(source_type: JobSourceConfig["source_type"]): JobSourceConfi
     company_slug: "example",
     last_run_at: null,
     fetch_interval_minutes: null,
+    remote_only: true,
+    posted_within_days: 1,
     enabled: true,
   };
 }

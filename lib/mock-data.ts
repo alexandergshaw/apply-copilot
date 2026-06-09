@@ -85,6 +85,8 @@ export type JobSource = {
   companyName: string;
   companySlug: string;
   fetchIntervalMinutes: number | null;
+  remoteOnly: boolean;
+  postedWithinDays: number;
   enabled: boolean;
   lastRunAt: string;
   lastSuccessAt: string;
@@ -271,6 +273,8 @@ export const jobSources: JobSource[] = [
     companyName: "",
     companySlug: "",
     fetchIntervalMinutes: null,
+    remoteOnly: true,
+    postedWithinDays: 1,
     enabled: true,
     lastRunAt: "",
     lastSuccessAt: "",
@@ -285,6 +289,8 @@ export const jobSources: JobSource[] = [
     companyName: "Example Greenhouse Company",
     companySlug: "example",
     fetchIntervalMinutes: null,
+    remoteOnly: true,
+    postedWithinDays: 1,
     enabled: false,
     lastRunAt: "",
     lastSuccessAt: "",
@@ -299,6 +305,8 @@ export const jobSources: JobSource[] = [
     companyName: "",
     companySlug: "",
     fetchIntervalMinutes: null,
+    remoteOnly: true,
+    postedWithinDays: 1,
     enabled: false,
     lastRunAt: "",
     lastSuccessAt: "",

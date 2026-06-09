@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mapJob, type JobRow } from "./types";
+import { mapJob, mapJobSource, type JobRow, type JobSourceRow } from "./types";
 
 function createJobRow(overrides: Partial<JobRow> = {}): JobRow {
   return {
@@ -36,5 +36,55 @@ describe("mapJob apply_url mapping", () => {
   it("maps a missing apply_url to null", () => {
     const job = mapJob(createJobRow({ apply_url: null }));
     expect(job.applyUrl).toBeNull();
+  });
+});
+
+describe("mapJobSource filter mapping", () => {
+  it("maps remote_only and posted_within_days", () => {
+    const source = mapJobSource({
+      id: 1,
+      name: "Acme",
+      source_type: "greenhouse",
+      url: "https://boards.greenhouse.io/acme",
+      company_name: null,
+      company_slug: null,
+      fetch_interval_minutes: null,
+      remote_only: false,
+      posted_within_days: 3,
+      enabled: true,
+      last_run_at: null,
+      last_success_at: null,
+      last_error: null,
+      run_count: 0,
+      created_at: null,
+      updated_at: null,
+    } satisfies JobSourceRow);
+
+    expect(source.remoteOnly).toBe(false);
+    expect(source.postedWithinDays).toBe(3);
+  });
+
+  it("uses defaults when filter columns are null", () => {
+    const source = mapJobSource({
+      id: 1,
+      name: "Acme",
+      source_type: "greenhouse",
+      url: "https://boards.greenhouse.io/acme",
+      company_name: null,
+      company_slug: null,
+      fetch_interval_minutes: null,
+      remote_only: null,
+      posted_within_days: null,
+      enabled: true,
+      last_run_at: null,
+      last_success_at: null,
+      last_error: null,
+      run_count: 0,
+      created_at: null,
+      updated_at: null,
+    } satisfies JobSourceRow);
+
+    expect(source.remoteOnly).toBe(true);
+    expect(source.postedWithinDays).toBe(1);
   });
 });
