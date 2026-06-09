@@ -30,6 +30,15 @@ export function JobCard({ job }: JobCardProps) {
         <span>Match: {job.matchScore}%</span>
       </div>
       <p className="mt-4 text-sm text-slate-700">{job.description}</p>
+      {job.autoApplyStatus === "needs_review" ? (
+        <p className="mt-3 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800">
+          Resume approval required before auto-apply can continue. Review and approve or regenerate in{" "}
+          <Link className="font-semibold underline" href={`/jobs/${job.id}#tailor-resume`}>
+            Resume Tailoring
+          </Link>
+          .
+        </p>
+      ) : null}
       <div className="mt-4 flex flex-wrap gap-3">
         <Link
           className="inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"

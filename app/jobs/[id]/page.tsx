@@ -90,7 +90,8 @@ export default async function JobDetailsPage({ params }: JobDetailsProps) {
         <h2 className="text-base font-semibold text-slate-900">Auto Apply</h2>
         <p className="mt-2 text-sm text-amber-800">
           Auto Apply may fill forms using your saved profile and application packet. Review
-          generated materials before approval. This workflow does not submit applications yet.
+          generated materials before approval. A tailored resume must be explicitly approved
+          before auto-apply can submit.
         </p>
 
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">

@@ -16,7 +16,7 @@ export function AutoApplyNowButton({ jobId, jobRole, company }: AutoApplyNowButt
 
   const onClick = () => {
     const confirmed = window.confirm(
-      `Start auto-apply for ${jobRole} at ${company}? This will tailor your resume and generate an application packet.`,
+      `Start auto-apply for ${jobRole} at ${company}? If your tailored resume is not approved yet, auto-apply will pause for your explicit review/approval.`,
     );
     if (!confirmed) {
       return;

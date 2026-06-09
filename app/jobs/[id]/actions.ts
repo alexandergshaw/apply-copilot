@@ -535,16 +535,64 @@ export async function autoApplyNow(jobId: string): Promise<ActionResult> {
     return { ok: false, message };
   }
 
-  const tailoredResult = await upsertTailoredDraft(numericJobId, resumeTemplateId, "llm");
-  if (!isTailorDraftResult(tailoredResult)) {
-    const message = tailoredResult.message ?? "Unable to tailor resume for auto-apply.";
+  const { data: existingTailoredResume } = await supabase
+    .from("tailored_resumes")
+    .select("id, status, tailored_text, tailoring_notes")
+    .eq("job_id", numericJobId)
+    .eq("resume_template_id", resumeTemplateId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let activeTailoredResume = existingTailoredResume;
+  if (!activeTailoredResume) {
+    const tailoredResult = await upsertTailoredDraft(numericJobId, resumeTemplateId, "llm");
+    if (!isTailorDraftResult(tailoredResult)) {
+      const message = tailoredResult.message ?? "Unable to tailor resume for auto-apply.";
+      await supabase
+        .from("jobs")
+        .update({ auto_apply_status: "failed", auto_apply_error: message })
+        .eq("id", numericJobId);
+      await updateAutoApplyRunStatus(runId, "failed", message);
+      revalidateJobPaths(jobId);
+      return { ok: false, message };
+    }
+
+    const { data: generatedTailoredResume, error: generatedResumeError } = await supabase
+      .from("tailored_resumes")
+      .select("id, status, tailored_text, tailoring_notes")
+      .eq("id", tailoredResult.tailoredResumeId)
+      .maybeSingle();
+
+    if (generatedResumeError || !generatedTailoredResume) {
+      const message = generatedResumeError?.message ?? "Tailored resume was not found after generation.";
+      await supabase
+        .from("jobs")
+        .update({ auto_apply_status: "failed", auto_apply_error: message })
+        .eq("id", numericJobId);
+      await updateAutoApplyRunStatus(runId, "failed", message);
+      revalidateJobPaths(jobId);
+      return { ok: false, message };
+    }
+
+    activeTailoredResume = generatedTailoredResume;
+  }
+
+  if (activeTailoredResume.status !== "approved") {
+    const message =
+      "Auto-apply paused for review. Approve the tailored resume in Resume Tailoring first (or regenerate it), then run Auto Apply again.";
+
     await supabase
       .from("jobs")
-      .update({ auto_apply_status: "failed", auto_apply_error: message })
+      .update({
+        auto_apply_status: "needs_review",
+        auto_apply_error: message,
+      })
       .eq("id", numericJobId);
-    await updateAutoApplyRunStatus(runId, "failed", message);
+    await updateAutoApplyRunStatus(runId, "needs_review", message);
     revalidateJobPaths(jobId);
-    return { ok: false, message };
+
+    return { ok: true, message };
   }
 
   const { data: job, error: jobError } = await supabase
@@ -564,23 +612,6 @@ export async function autoApplyNow(jobId: string): Promise<ActionResult> {
     return { ok: false, message };
   }
 
-  const { data: tailoredResume, error: tailoredError } = await supabase
-    .from("tailored_resumes")
-    .select("tailored_text, tailoring_notes")
-    .eq("id", tailoredResult.tailoredResumeId)
-    .maybeSingle();
-
-  if (tailoredError || !tailoredResume) {
-    const message = tailoredError?.message ?? "Tailored resume was not found after generation.";
-    await supabase
-      .from("jobs")
-      .update({ auto_apply_status: "failed", auto_apply_error: message })
-      .eq("id", numericJobId);
-    await updateAutoApplyRunStatus(runId, "failed", message);
-    revalidateJobPaths(jobId);
-    return { ok: false, message };
-  }
-
   const coverLetter = buildCoverLetter({
     company: job.company ?? "the team",
     title: job.title,
@@ -588,7 +619,7 @@ export async function autoApplyNow(jobId: string): Promise<ActionResult> {
     profileName: profile.name || "I",
     profileSummary: profile.summary || "",
     skills: profile.skills,
-    tailoredResumeText: tailoredResume.tailored_text,
+    tailoredResumeText: activeTailoredResume.tailored_text,
   });
 
   const shortAnswers = buildShortAnswers({
@@ -622,7 +653,7 @@ export async function autoApplyNow(jobId: string): Promise<ActionResult> {
   if (!profile.linkedinUrl.trim()) {
     missingRequiredFields.push("LinkedIn URL");
   }
-  if (!tailoredResume.tailored_text.trim()) {
+  if (!activeTailoredResume.tailored_text.trim()) {
     missingRequiredFields.push("tailored resume text");
   }
   if (!coverLetter.trim()) {
@@ -631,8 +662,8 @@ export async function autoApplyNow(jobId: string): Promise<ActionResult> {
 
   const packetPayload = {
     job_id: numericJobId,
-    tailored_resume: tailoredResume.tailored_text,
-    tailoring_notes: tailoredResume.tailoring_notes ?? "Generated via auto-apply.",
+    tailored_resume: activeTailoredResume.tailored_text,
+    tailoring_notes: activeTailoredResume.tailoring_notes ?? "Generated via auto-apply.",
     cover_letter: coverLetter,
     short_answers: shortAnswers,
     risk_notes:
