@@ -74,10 +74,14 @@ function replaceBodyContent(documentXml: string, tailoredText: string): string {
 
   const paragraphs = contentWithoutSectPr.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? [];
 
-  const lines = tailoredText
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
+  // Keep empty lines so each tailored line stays positionally aligned with the
+  // template paragraph at the same index (preserving section structure).
+  const rawLines = tailoredText.replace(/\r\n/g, "\n").split("\n").map((line) => line.trim());
+  // Drop a single trailing empty line caused by a final newline.
+  if (rawLines.length > 1 && rawLines[rawLines.length - 1] === "") {
+    rawLines.pop();
+  }
+  const lines = rawLines;
 
   // No paragraphs to template from: emit minimal paragraphs so output is valid.
   if (paragraphs.length === 0) {
