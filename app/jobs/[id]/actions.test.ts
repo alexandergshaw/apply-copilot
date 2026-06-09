@@ -41,6 +41,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
+  autoApplyNow,
   automaticallyTailorResume,
   generateTailoredResume,
   tailorResumeForDownload,
@@ -302,5 +303,243 @@ describe("tailorResumeForDownload", () => {
     expect(result.message).toBe(
       "AI resume tailoring requires Gemini, but it is not configured. Set GEMINI_API_KEY (and optional GEMINI_MODEL) to generate a tailored resume.",
     );
+  });
+});
+
+describe("autoApplyNow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    getUserProfileMock.mockResolvedValue({
+      id: "profile-123",
+      name: "Ada",
+      email: "ada@example.com",
+      phone: "555-1111",
+      location: "Austin, TX",
+      linkedinUrl: "https://linkedin.com/in/ada",
+      portfolioUrl: "https://ada.dev",
+      githubUrl: "https://github.com/ada",
+      summary: "shipping customer-facing product experiences",
+      skills: ["Product Strategy", "Roadmapping"],
+    });
+    getDefaultResumeTemplateForProfileMock.mockResolvedValue({ id: 7 });
+    getResumeTemplatesMock.mockResolvedValue([{ id: 7 }]);
+    downloadResumeTemplateDocxMock.mockResolvedValue(Buffer.from("docx"));
+    tailorResumeMock.mockResolvedValue({
+      tailoredText: "Tailored text",
+      outputDocxBuffer: Buffer.from("generated-docx"),
+      outputFilename: "cloudline-staff-pm-tailored-resume.docx",
+      sourceDocxStoragePath: "profile-123/7/resume.docx",
+      tailoringNotes: "Draft DOCX generated automatically from the selected resume template. Review before using.",
+      keywordCoverage: { status: "stub" },
+      matchScore: 88,
+      status: "draft",
+    });
+    uploadTailoredResumeDocxMock.mockResolvedValue({
+      path: "profile-123/12/tailored-resume-7-123.docx",
+    });
+  });
+
+  it("completes auto-apply and saves packet/application", async () => {
+    const fromMock = vi.fn((table: string) => {
+      if (table === "auto_apply_runs") {
+        return {
+          insert: () => ({
+            select: () => ({
+              limit: () => Promise.resolve({ data: [{ id: 201 }], error: null }),
+            }),
+          }),
+          update: () => ({
+            eq: () => Promise.resolve({ error: null }),
+          }),
+        };
+      }
+
+      if (table === "jobs") {
+        return {
+          update: () => ({
+            eq: () => Promise.resolve({ error: null }),
+          }),
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: {
+                    id: 12,
+                    title: "Staff PM",
+                    company: "CloudLine",
+                    location: "Remote",
+                    salary: null,
+                    description: "Build products",
+                    match_score: 88,
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        };
+      }
+
+      if (table === "resume_templates") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: {
+                    id: 7,
+                    profile_id: "profile-123",
+                    name: "Template",
+                    target_role: "PM",
+                    original_filename: "resume.docx",
+                    docx_storage_path: "profile-123/7/resume.docx",
+                    extracted_text: "Extracted",
+                    template_text: "Template",
+                    template_json: {},
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        };
+      }
+
+      if (table === "user_profiles") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () => Promise.resolve({ data: { id: "profile-123" }, error: null }),
+            }),
+          }),
+        };
+      }
+
+      if (table === "tailored_resumes") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                eq: () => ({
+                  order: () => Promise.resolve({ data: [], error: null }),
+                }),
+              }),
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: {
+                    tailored_text: "Tailored text",
+                    tailoring_notes: "Generated notes",
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+          insert: () => ({
+            select: () => ({
+              limit: () => Promise.resolve({ data: [{ id: 301 }], error: null }),
+            }),
+          }),
+          update: () => ({
+            eq: () => ({
+              select: () => ({
+                limit: () => Promise.resolve({ data: [{ id: 301 }], error: null }),
+              }),
+            }),
+            in: () => Promise.resolve({ error: null }),
+          }),
+        };
+      }
+
+      if (table === "application_packets") {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                limit: () => ({
+                  maybeSingle: () => Promise.resolve({ data: null, error: null }),
+                }),
+              }),
+            }),
+          }),
+          insert: () => ({
+            select: () => ({
+              limit: () => Promise.resolve({ data: [{ id: 501 }], error: null }),
+            }),
+          }),
+          update: () => ({
+            eq: () => ({
+              select: () => ({
+                limit: () => Promise.resolve({ data: [{ id: 501 }], error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+
+      if (table === "applications") {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                limit: () => ({
+                  maybeSingle: () => Promise.resolve({ data: null, error: null }),
+                }),
+              }),
+            }),
+          }),
+          insert: () => Promise.resolve({ error: null }),
+          update: () => ({
+            eq: () => Promise.resolve({ error: null }),
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    getSupabaseServerClientMock.mockReturnValue({ from: fromMock });
+
+    const result = await autoApplyNow("12");
+
+    expect(result.ok).toBe(true);
+    expect(result.message).toContain("Auto-apply completed");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/applications");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/jobs");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/jobs/12");
+  });
+
+  it("blocks auto-apply when profile is missing", async () => {
+    getUserProfileMock.mockResolvedValue(null);
+
+    const fromMock = vi.fn((table: string) => {
+      if (table === "auto_apply_runs") {
+        return {
+          insert: () => ({
+            select: () => ({
+              limit: () => Promise.resolve({ data: [{ id: 201 }], error: null }),
+            }),
+          }),
+          update: () => ({
+            eq: () => Promise.resolve({ error: null }),
+          }),
+        };
+      }
+
+      if (table === "jobs") {
+        return {
+          update: () => ({
+            eq: () => Promise.resolve({ error: null }),
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    getSupabaseServerClientMock.mockReturnValue({ from: fromMock });
+
+    const result = await autoApplyNow("12");
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("No profile found");
   });
 });

@@ -350,6 +350,286 @@ export type TailorResumeForDownloadResult = ActionResult & {
   outputFilename?: string;
 };
 
+function buildCoverLetter(input: {
+  company: string;
+  title: string;
+  location: string;
+  profileName: string;
+  profileSummary: string;
+  skills: string[];
+  tailoredResumeText: string;
+}): string {
+  const topSkills = input.skills.slice(0, 4).join(", ");
+  const resumeSnippet = input.tailoredResumeText.split("\n").filter(Boolean).slice(0, 3).join(" ");
+
+  return [
+    `Dear ${input.company} Hiring Team,`,
+    "",
+    `I am excited to apply for the ${input.title} role in ${input.location}.`,
+    `${input.profileName} brings a strong track record aligned to this position${
+      input.profileSummary ? `, including ${input.profileSummary}.` : "."
+    }`,
+    topSkills ? `Relevant strengths include: ${topSkills}.` : "",
+    resumeSnippet ? `Recent experience highlights: ${resumeSnippet}` : "",
+    "",
+    "Thank you for your consideration.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+async function updateAutoApplyRunStatus(
+  runId: number | null,
+  status: string,
+  errorMessage?: string,
+): Promise<void> {
+  if (!runId) {
+    return;
+  }
+
+  const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return;
+  }
+
+  await supabase
+    .from("auto_apply_runs")
+    .update({
+      status,
+      error_message: errorMessage ?? null,
+      finished_at: new Date().toISOString(),
+    })
+    .eq("id", runId);
+}
+
+export async function autoApplyNow(jobId: string): Promise<ActionResult> {
+  const numericJobId = parseJobId(jobId);
+  if (numericJobId == null) {
+    return { ok: false, message: "Invalid job id." };
+  }
+
+  const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return {
+      ok: false,
+      message: "Supabase is not configured. Add environment variables to run auto-apply.",
+    };
+  }
+
+  const runStartedAt = new Date().toISOString();
+  let runId: number | null = null;
+
+  const { data: runInsertData } = await supabase
+    .from("auto_apply_runs")
+    .insert({
+      job_id: numericJobId,
+      status: "running",
+      started_at: runStartedAt,
+    })
+    .select("id")
+    .limit(1);
+
+  runId = runInsertData?.[0]?.id ?? null;
+
+  await supabase
+    .from("jobs")
+    .update({
+      auto_apply_enabled: true,
+      auto_apply_status: "running",
+      auto_apply_error: null,
+      auto_apply_approved_at: runStartedAt,
+    })
+    .eq("id", numericJobId);
+
+  const profile = await getUserProfile();
+  if (!profile) {
+    const message = "No profile found. Complete your profile before auto-apply.";
+    await supabase
+      .from("jobs")
+      .update({ auto_apply_status: "blocked", auto_apply_error: message })
+      .eq("id", numericJobId);
+    await updateAutoApplyRunStatus(runId, "blocked", message);
+    revalidateJobPaths(jobId);
+    return { ok: false, message };
+  }
+
+  const defaultTemplate = await getDefaultResumeTemplateForProfile(profile.id);
+  const resumeTemplateId = defaultTemplate?.id;
+
+  if (!resumeTemplateId) {
+    const message = "No default resume template found. Set a default template before auto-apply.";
+    await supabase
+      .from("jobs")
+      .update({ auto_apply_status: "blocked", auto_apply_error: message })
+      .eq("id", numericJobId);
+    await updateAutoApplyRunStatus(runId, "blocked", message);
+    revalidateJobPaths(jobId);
+    return { ok: false, message };
+  }
+
+  const tailoredResult = await upsertTailoredDraft(numericJobId, resumeTemplateId, "llm");
+  if (!isTailorDraftResult(tailoredResult)) {
+    const message = tailoredResult.message ?? "Unable to tailor resume for auto-apply.";
+    await supabase
+      .from("jobs")
+      .update({ auto_apply_status: "failed", auto_apply_error: message })
+      .eq("id", numericJobId);
+    await updateAutoApplyRunStatus(runId, "failed", message);
+    revalidateJobPaths(jobId);
+    return { ok: false, message };
+  }
+
+  const { data: job, error: jobError } = await supabase
+    .from("jobs")
+    .select("title, company, location")
+    .eq("id", numericJobId)
+    .maybeSingle();
+
+  if (jobError || !job) {
+    const message = jobError?.message ?? "Job not found during auto-apply.";
+    await supabase
+      .from("jobs")
+      .update({ auto_apply_status: "failed", auto_apply_error: message })
+      .eq("id", numericJobId);
+    await updateAutoApplyRunStatus(runId, "failed", message);
+    revalidateJobPaths(jobId);
+    return { ok: false, message };
+  }
+
+  const { data: tailoredResume, error: tailoredError } = await supabase
+    .from("tailored_resumes")
+    .select("tailored_text, tailoring_notes")
+    .eq("id", tailoredResult.tailoredResumeId)
+    .maybeSingle();
+
+  if (tailoredError || !tailoredResume) {
+    const message = tailoredError?.message ?? "Tailored resume was not found after generation.";
+    await supabase
+      .from("jobs")
+      .update({ auto_apply_status: "failed", auto_apply_error: message })
+      .eq("id", numericJobId);
+    await updateAutoApplyRunStatus(runId, "failed", message);
+    revalidateJobPaths(jobId);
+    return { ok: false, message };
+  }
+
+  const coverLetter = buildCoverLetter({
+    company: job.company ?? "the team",
+    title: job.title,
+    location: job.location ?? "your location",
+    profileName: profile.name || "I",
+    profileSummary: profile.summary || "",
+    skills: profile.skills,
+    tailoredResumeText: tailoredResume.tailored_text,
+  });
+
+  const shortAnswers = [
+    `Name: ${profile.name || "Not provided"}`,
+    `Email: ${profile.email || "Not provided"}`,
+    `Phone: ${profile.phone || "Not provided"}`,
+    `Location: ${profile.location || "Not provided"}`,
+    `LinkedIn: ${profile.linkedinUrl || "Not provided"}`,
+    `Portfolio: ${profile.portfolioUrl || "Not provided"}`,
+    `GitHub: ${profile.githubUrl || "Not provided"}`,
+  ];
+
+  const packetPayload = {
+    job_id: numericJobId,
+    tailored_resume: tailoredResume.tailored_text,
+    tailoring_notes: tailoredResume.tailoring_notes ?? "Generated via auto-apply.",
+    cover_letter: coverLetter,
+    short_answers: shortAnswers,
+    risk_notes: "Auto-generated packet. Review before external submission if needed.",
+  };
+
+  const { data: existingPacket } = await supabase
+    .from("application_packets")
+    .select("id")
+    .eq("job_id", numericJobId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: packetRows, error: packetError } = existingPacket
+    ? await supabase
+        .from("application_packets")
+        .update(packetPayload)
+        .eq("id", existingPacket.id)
+        .select("id")
+        .limit(1)
+    : await supabase.from("application_packets").insert(packetPayload).select("id").limit(1);
+
+  if (packetError) {
+    const message = mapRlsErrorMessage(packetError.message, packetError.code);
+    await supabase
+      .from("jobs")
+      .update({ auto_apply_status: "failed", auto_apply_error: message })
+      .eq("id", numericJobId);
+    await updateAutoApplyRunStatus(runId, "failed", message);
+    revalidateJobPaths(jobId);
+    return { ok: false, message };
+  }
+
+  const packetId = packetRows?.[0]?.id ?? existingPacket?.id ?? null;
+
+  const { data: existingApplication } = await supabase
+    .from("applications")
+    .select("id")
+    .eq("job_id", numericJobId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const applicationPayload = {
+    packet_id: packetId,
+    status: "submitted",
+    applied_at: new Date().toISOString(),
+    notes: "Submitted via Auto Apply.",
+  };
+
+  const { error: applicationError } = existingApplication
+    ? await supabase
+        .from("applications")
+        .update(applicationPayload)
+        .eq("id", existingApplication.id)
+    : await supabase
+        .from("applications")
+        .insert({
+          job_id: numericJobId,
+          ...applicationPayload,
+        });
+
+  if (applicationError) {
+    const message = mapRlsErrorMessage(applicationError.message, applicationError.code);
+    await supabase
+      .from("jobs")
+      .update({ auto_apply_status: "failed", auto_apply_error: message })
+      .eq("id", numericJobId);
+    await updateAutoApplyRunStatus(runId, "failed", message);
+    revalidateJobPaths(jobId);
+    return { ok: false, message };
+  }
+
+  await supabase
+    .from("jobs")
+    .update({
+      status: "applied",
+      auto_apply_enabled: true,
+      auto_apply_status: "submitted",
+      auto_apply_error: null,
+    })
+    .eq("id", numericJobId);
+
+  await updateAutoApplyRunStatus(runId, "submitted");
+  revalidatePath("/applications");
+  revalidateJobPaths(jobId);
+
+  return {
+    ok: true,
+    message: "Auto-apply completed: tailored resume, cover letter, and application packet were saved.",
+  };
+}
+
 export async function tailorResumeForDownload(jobId: string): Promise<TailorResumeForDownloadResult> {
   const numericJobId = parseJobId(jobId);
   if (numericJobId == null) {
