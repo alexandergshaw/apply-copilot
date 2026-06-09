@@ -1,7 +1,7 @@
 -- Add per-source fetch cadence overrides.
 --
 -- When null, source cadence falls back to worker default
--- DEFAULT_FETCH_INTERVAL_MINUTES (360 by default).
+-- DEFAULT_FETCH_INTERVAL_MINUTES (10 by default).
 
 alter table job_sources
   add column if not exists fetch_interval_minutes integer;

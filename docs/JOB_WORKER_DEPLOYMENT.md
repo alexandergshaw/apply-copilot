@@ -11,7 +11,7 @@ from `jobs`, fetched roles appear on `/jobs` automatically after each run.
 | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_URL` | Yes | Supabase project URL. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role key. **Server/worker only — never expose to the browser.** |
-| `DEFAULT_FETCH_INTERVAL_MINUTES` | No | Default per-source cadence in minutes when a source has no override. Default: `360` (6h). |
+| `DEFAULT_FETCH_INTERVAL_MINUTES` | No | Default per-source cadence in minutes when a source has no override. Default: `10`. |
 | `JOB_FETCH_SCAN_INTERVAL_MS` | No | Continuous mode scan cadence. Default: `60000` (1m). Sources still run only when due. |
 | `JOB_FETCH_INTERVAL_MS` | No | Legacy continuous mode env (still supported as fallback to `JOB_FETCH_SCAN_INTERVAL_MS`). |
 
@@ -53,10 +53,10 @@ Exit codes (one-shot `--once` mode):
    npm run worker:jobs:once
    ```
 
-4. Set a cron schedule, for example every 6 hours:
+4. Set a cron schedule, for example every 10 minutes:
 
    ```cron
-   0 */6 * * *
+  */10 * * * *
    ```
 
    Railway will start the service on that schedule, run a single fetch pass, and
@@ -71,8 +71,8 @@ Exit codes (one-shot `--once` mode):
 
 ## Cadence examples
 
-- Default every 6 hours for all sources:
-  - `DEFAULT_FETCH_INTERVAL_MINUTES=360`
+- Default every 10 minutes for all sources:
+  - `DEFAULT_FETCH_INTERVAL_MINUTES=10`
   - `fetch_interval_minutes = NULL` on each source
 - Run one source hourly:
   - set that source row `fetch_interval_minutes = 60`

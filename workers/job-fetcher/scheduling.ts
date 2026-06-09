@@ -1,6 +1,6 @@
 import type { JobSourceConfig } from "./types";
 
-const DEFAULT_FETCH_INTERVAL_MINUTES = 360;
+const DEFAULT_FETCH_INTERVAL_MINUTES = 10;
 
 export function resolveDefaultFetchIntervalMinutes(): number {
   const raw = process.env.DEFAULT_FETCH_INTERVAL_MINUTES;

@@ -27,7 +27,7 @@ type SourceDraft = {
   enabled: boolean;
 };
 
-const DEFAULT_FETCH_INTERVAL_MINUTES = 360;
+const DEFAULT_FETCH_INTERVAL_MINUTES = 10;
 
 const emptySource: SourceDraft = {
   id: "",

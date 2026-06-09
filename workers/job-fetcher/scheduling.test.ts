@@ -27,9 +27,9 @@ function withEnv(value: string | undefined, run: () => void) {
 }
 
 describe("resolveDefaultFetchIntervalMinutes", () => {
-  it("returns 360 when env is missing", () => {
+  it("returns 10 when env is missing", () => {
     withEnv(undefined, () => {
-      expect(resolveDefaultFetchIntervalMinutes()).toBe(360);
+      expect(resolveDefaultFetchIntervalMinutes()).toBe(10);
     });
   });
 
@@ -39,15 +39,15 @@ describe("resolveDefaultFetchIntervalMinutes", () => {
     });
   });
 
-  it("falls back to 360 on invalid values", () => {
+  it("falls back to 10 on invalid values", () => {
     withEnv("abc", () => {
-      expect(resolveDefaultFetchIntervalMinutes()).toBe(360);
+      expect(resolveDefaultFetchIntervalMinutes()).toBe(10);
     });
     withEnv("0", () => {
-      expect(resolveDefaultFetchIntervalMinutes()).toBe(360);
+      expect(resolveDefaultFetchIntervalMinutes()).toBe(10);
     });
     withEnv("-5", () => {
-      expect(resolveDefaultFetchIntervalMinutes()).toBe(360);
+      expect(resolveDefaultFetchIntervalMinutes()).toBe(10);
     });
   });
 });
@@ -57,19 +57,19 @@ describe("interval and due calculation", () => {
 
   it("uses source interval override when present", () => {
     expect(
-      getEffectiveFetchIntervalMinutes({ fetch_interval_minutes: 15 }, 360),
+      getEffectiveFetchIntervalMinutes({ fetch_interval_minutes: 15 }, 10),
     ).toBe(15);
   });
 
   it("uses default interval when source override is null", () => {
     expect(
-      getEffectiveFetchIntervalMinutes({ fetch_interval_minutes: null }, 360),
-    ).toBe(360);
+      getEffectiveFetchIntervalMinutes({ fetch_interval_minutes: null }, 10),
+    ).toBe(10);
   });
 
   it("is due when source has never run", () => {
     expect(
-      isSourceDue({ last_run_at: null, fetch_interval_minutes: null }, now, 360),
+      isSourceDue({ last_run_at: null, fetch_interval_minutes: null }, now, 10),
     ).toBe(true);
   });
 
@@ -77,11 +77,11 @@ describe("interval and due calculation", () => {
     expect(
       isSourceDue(
         {
-          last_run_at: "2026-06-09T06:00:00.000Z",
+          last_run_at: "2026-06-09T11:50:00.000Z",
           fetch_interval_minutes: null,
         },
         now,
-        360,
+        10,
       ),
     ).toBe(true);
   });
@@ -90,11 +90,11 @@ describe("interval and due calculation", () => {
     expect(
       isSourceDue(
         {
-          last_run_at: "2026-06-09T11:30:00.000Z",
+          last_run_at: "2026-06-09T11:55:00.000Z",
           fetch_interval_minutes: null,
         },
         now,
-        360,
+        10,
       ),
     ).toBe(false);
   });
@@ -107,7 +107,7 @@ describe("interval and due calculation", () => {
           fetch_interval_minutes: 15,
         },
         now,
-        360,
+        10,
       ),
     ).toBe(false);
 
@@ -118,7 +118,7 @@ describe("interval and due calculation", () => {
           fetch_interval_minutes: 15,
         },
         now,
-        360,
+        10,
       ),
     ).toBe(true);
   });
@@ -130,7 +130,7 @@ describe("interval and due calculation", () => {
         fetch_interval_minutes: 15,
       },
       now,
-      360,
+      10,
     );
 
     expect(nextDue?.toISOString()).toBe("2026-06-09T12:05:00.000Z");
