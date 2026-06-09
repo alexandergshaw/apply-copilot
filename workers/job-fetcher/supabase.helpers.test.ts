@@ -222,6 +222,52 @@ describe("source loaders", () => {
     await expect(loadEnabledJobSources(client as never)).rejects.toThrow(/Failed to load job sources/);
   });
 
+  it("loadEnabledJobSources retries with legacy columns when last_auto_run_at is missing", async () => {
+    const orderMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: 'column "last_auto_run_at" does not exist' },
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 1,
+            name: "G",
+            source_type: "greenhouse",
+            url: "https://boards.greenhouse.io/g",
+            company_name: null,
+            company_slug: null,
+            last_run_at: null,
+            fetch_interval_minutes: null,
+            remote_only: true,
+            posted_within_days: 1,
+            enabled: true,
+          },
+        ],
+        error: null,
+      });
+
+    const client = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            in: () => ({
+              order: orderMock,
+            }),
+          }),
+        }),
+      }),
+    };
+
+    const result = await loadEnabledJobSources(client as never);
+
+    expect(orderMock).toHaveBeenCalledTimes(2);
+    expect(result).toEqual([
+      expect.objectContaining({ id: 1, source_type: "greenhouse", last_auto_run_at: null }),
+    ]);
+  });
+
   it("loadJobSourceById returns null when not found", async () => {
     const client = {
       from: () => ({
@@ -273,6 +319,48 @@ describe("source loaders", () => {
     };
 
     await expect(loadJobSourceById(client as never, 1)).rejects.toThrow(/Failed to load job source/);
+  });
+
+  it("loadJobSourceById retries with legacy columns when last_auto_run_at is missing", async () => {
+    const maybeSingleMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: 'column "last_auto_run_at" does not exist' },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 10,
+          name: "G",
+          source_type: "greenhouse",
+          url: "https://boards.greenhouse.io/g",
+          company_name: null,
+          company_slug: null,
+          last_run_at: null,
+          fetch_interval_minutes: null,
+          remote_only: true,
+          posted_within_days: 1,
+          enabled: true,
+        },
+        error: null,
+      });
+
+    const client = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            maybeSingle: maybeSingleMock,
+          }),
+        }),
+      }),
+    };
+
+    const result = await loadJobSourceById(client as never, 10);
+
+    expect(maybeSingleMock).toHaveBeenCalledTimes(2);
+    expect(result).toEqual(
+      expect.objectContaining({ id: 10, source_type: "greenhouse", last_auto_run_at: null }),
+    );
   });
 });
 

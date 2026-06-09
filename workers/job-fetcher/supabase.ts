@@ -74,7 +74,7 @@ type JobSourceConfigRow = {
   company_name: string | null;
   company_slug: string | null;
   last_run_at: string | null;
-  last_auto_run_at: string | null;
+  last_auto_run_at?: string | null;
   fetch_interval_minutes: number | null;
   remote_only: boolean | null;
   posted_within_days: number | null;
@@ -93,7 +93,7 @@ function toConfig(row: JobSourceConfigRow): JobSourceConfig | null {
     company_name: row.company_name,
     company_slug: row.company_slug,
     last_run_at: row.last_run_at,
-    last_auto_run_at: row.last_auto_run_at,
+    last_auto_run_at: row.last_auto_run_at ?? null,
     fetch_interval_minutes: row.fetch_interval_minutes,
     remote_only: row.remote_only ?? true,
     posted_within_days: row.posted_within_days ?? 1,
@@ -104,24 +104,48 @@ function toConfig(row: JobSourceConfigRow): JobSourceConfig | null {
 const SOURCE_COLUMNS =
   "id, name, source_type, url, company_name, company_slug, last_run_at, last_auto_run_at, fetch_interval_minutes, remote_only, posted_within_days, enabled";
 
+const LEGACY_SOURCE_COLUMNS =
+  "id, name, source_type, url, company_name, company_slug, last_run_at, fetch_interval_minutes, remote_only, posted_within_days, enabled";
+
+function isMissingLastAutoRunAtColumnError(message: string): boolean {
+  return /last_auto_run_at/i.test(message) && /column.*does not exist/i.test(message);
+}
+
 /**
  * Load all enabled job sources whose source_type is a supported job board.
  */
 export async function loadEnabledJobSources(
   client: WorkerSupabaseClient,
 ): Promise<JobSourceConfig[]> {
-  const { data, error } = await client
+  const primary = await client
     .from("job_sources")
     .select(SOURCE_COLUMNS)
     .eq("enabled", true)
     .in("source_type", SUPPORTED_SOURCE_TYPES)
     .order("id", { ascending: true });
 
-  if (error) {
-    throw new Error(`Failed to load job sources: ${error.message}`);
+  if (!primary.error) {
+    return (primary.data ?? [])
+      .map((row) => toConfig(row as JobSourceConfigRow))
+      .filter((config): config is JobSourceConfig => config !== null);
   }
 
-  return (data ?? [])
+  if (!isMissingLastAutoRunAtColumnError(primary.error.message)) {
+    throw new Error(`Failed to load job sources: ${primary.error.message}`);
+  }
+
+  const fallback = await client
+    .from("job_sources")
+    .select(LEGACY_SOURCE_COLUMNS)
+    .eq("enabled", true)
+    .in("source_type", SUPPORTED_SOURCE_TYPES)
+    .order("id", { ascending: true });
+
+  if (fallback.error) {
+    throw new Error(`Failed to load job sources: ${fallback.error.message}`);
+  }
+
+  return (fallback.data ?? [])
     .map((row) => toConfig(row as JobSourceConfigRow))
     .filter((config): config is JobSourceConfig => config !== null);
 }
@@ -134,20 +158,38 @@ export async function loadJobSourceById(
   client: WorkerSupabaseClient,
   id: number,
 ): Promise<JobSourceConfig | null> {
-  const { data, error } = await client
+  const primary = await client
     .from("job_sources")
     .select(SOURCE_COLUMNS)
     .eq("id", id)
     .maybeSingle();
 
-  if (error) {
-    throw new Error(`Failed to load job source ${id}: ${error.message}`);
+  if (!primary.error) {
+    if (!primary.data) {
+      return null;
+    }
+
+    return toConfig(primary.data as JobSourceConfigRow);
   }
-  if (!data) {
+
+  if (!isMissingLastAutoRunAtColumnError(primary.error.message)) {
+    throw new Error(`Failed to load job source ${id}: ${primary.error.message}`);
+  }
+
+  const fallback = await client
+    .from("job_sources")
+    .select(LEGACY_SOURCE_COLUMNS)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (fallback.error) {
+    throw new Error(`Failed to load job source ${id}: ${fallback.error.message}`);
+  }
+  if (!fallback.data) {
     return null;
   }
 
-  return toConfig(data as JobSourceConfigRow);
+  return toConfig(fallback.data as JobSourceConfigRow);
 }
 
 /**
