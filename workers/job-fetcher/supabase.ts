@@ -21,8 +21,21 @@ export class WorkerConfigError extends Error {
 }
 
 const SUPPORTED_SOURCE_TYPES: JobBoardSourceType[] = ["greenhouse", "lever", "ashby"];
+const APPLY_URL_LOOKUP_BATCH_SIZE = 200;
 
 export type WorkerSupabaseClient = SupabaseClient<Database>;
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  if (size <= 0) {
+    return [items];
+  }
+
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
 
 /**
  * Create a Supabase client authenticated with the service role key.
@@ -162,17 +175,24 @@ export async function upsertNormalizedJobs(
 
   const applyUrls = Array.from(new Set(valid.map((posting) => posting.apply_url)));
 
-  const { data: existingRows, error: selectError } = await client
-    .from("jobs")
-    .select("id, apply_url")
-    .in("apply_url", applyUrls);
+  const existingRows: Array<{ id: number; apply_url: string | null }> = [];
+  const urlChunks = chunkArray(applyUrls, APPLY_URL_LOOKUP_BATCH_SIZE);
 
-  if (selectError) {
-    throw new Error(`Failed to query existing jobs: ${selectError.message}`);
+  for (const urlChunk of urlChunks) {
+    const { data, error: selectError } = await client
+      .from("jobs")
+      .select("id, apply_url")
+      .in("apply_url", urlChunk);
+
+    if (selectError) {
+      throw new Error(`Failed to query existing jobs: ${selectError.message}`);
+    }
+
+    existingRows.push(...(data ?? []));
   }
 
   const existingByUrl = new Map<string, number>();
-  for (const row of existingRows ?? []) {
+  for (const row of existingRows) {
     if (row.apply_url) {
       existingByUrl.set(row.apply_url, row.id);
     }

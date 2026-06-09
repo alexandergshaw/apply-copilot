@@ -32,13 +32,21 @@ type ExistingRow = { id: number; apply_url: string };
 function makeClient(existing: ExistingRow[]) {
   const inserted: Array<Record<string, unknown>> = [];
   const updated: Array<{ id: number; values: Record<string, unknown> }> = [];
+  const inCalls: string[][] = [];
 
   const client = {
     from() {
       return {
         select() {
           return {
-            in: async () => ({ data: existing, error: null }),
+            in: async (_column: string, values: string[]) => {
+              inCalls.push(values);
+              const valueSet = new Set(values);
+              return {
+                data: existing.filter((row) => valueSet.has(row.apply_url)),
+                error: null,
+              };
+            },
           };
         },
         update(values: Record<string, unknown>) {
@@ -57,7 +65,7 @@ function makeClient(existing: ExistingRow[]) {
     },
   } as unknown as WorkerSupabaseClient;
 
-  return { client, inserted, updated };
+  return { client, inserted, updated, inCalls };
 }
 
 describe("upsertNormalizedJobs", () => {
@@ -105,5 +113,23 @@ describe("upsertNormalizedJobs", () => {
     expect(summary.jobsInserted).toBe(1);
     expect(summary.jobsSkipped).toBe(1);
     expect(inserted).toHaveLength(1);
+  });
+
+  it("chunks apply_url lookup queries for large batches", async () => {
+    const postings = Array.from({ length: 450 }, (_, index) =>
+      makePosting({
+        apply_url: `https://example.com/jobs/${index}`,
+      }),
+    );
+
+    const { client, inCalls } = makeClient([]);
+    const summary = await upsertNormalizedJobs(client, source, postings);
+
+    expect(summary.jobsFound).toBe(450);
+    expect(summary.jobsInserted).toBe(450);
+    expect(inCalls).toHaveLength(3);
+    expect(inCalls[0]).toHaveLength(200);
+    expect(inCalls[1]).toHaveLength(200);
+    expect(inCalls[2]).toHaveLength(50);
   });
 });
