@@ -5,7 +5,7 @@ import { useEffect, useState, useTransition } from "react";
 
 import {
   applyDefaultFiltersToAllJobSources,
-  createJobSource,
+  createJobSourceAndFetch,
   deleteJobSource,
   runJobFetchForSource,
   updateJobSource,
@@ -152,10 +152,12 @@ export function SourceForm({ initialSources }: SourceFormProps) {
       enabled: draft.enabled,
     };
 
-    runAction(
-      () => (draft.id ? updateJobSource(draft.id, input) : createJobSource(input)),
-      () => setDraft(emptySource),
-    );
+    if (draft.id) {
+      runAction(() => updateJobSource(draft.id, input), () => setDraft(emptySource));
+      return;
+    }
+
+    runAction(() => createJobSourceAndFetch(input), () => setDraft(emptySource), true);
   };
 
   const editSource = (source: JobSource) => {

@@ -133,6 +133,46 @@ export async function createJobSource(input: JobSourceInput): Promise<ActionResu
   return { ok: true };
 }
 
+export async function createJobSourceAndFetch(input: JobSourceInput): Promise<ActionResult> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return NOT_CONFIGURED;
+  }
+
+  const { data, error } = await supabase
+    .from("job_sources")
+    .insert({
+      name: input.sourceName,
+      source_type: input.sourceType,
+      url: input.url,
+      company_name: input.companyName.trim() || null,
+      company_slug: input.companySlug.trim() || null,
+      fetch_interval_minutes: parseFetchIntervalMinutes(input.fetchIntervalMinutes),
+      remote_only: input.remoteOnly,
+      posted_within_days: parsePostedWithinDays(input.postedWithinDays),
+      enabled: input.enabled,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    return { ok: false, message: error?.message ?? "Unable to create source." };
+  }
+
+  const fetchResult = await runJobFetchForSourceByNumericId(data.id);
+  if (!fetchResult.ok) {
+    return {
+      ok: true,
+      message: `Source created, but fetch failed: ${fetchResult.message ?? "Unknown error."}`,
+    };
+  }
+
+  return {
+    ok: true,
+    message: `Source created. ${fetchResult.message ?? "Fetch completed."}`,
+  };
+}
+
 export async function updateJobSource(
   id: string,
   input: JobSourceInput,
@@ -216,6 +256,10 @@ export async function runJobFetchForSource(id: string): Promise<ActionResult> {
     return { ok: false, message: "Invalid source id." };
   }
 
+  return runJobFetchForSourceByNumericId(numericId);
+}
+
+async function runJobFetchForSourceByNumericId(numericId: number): Promise<ActionResult> {
   try {
     const { fetchJobsForSourceId } = await import("@/workers/job-fetcher/fetch-all");
     const result = await fetchJobsForSourceId(numericId);
