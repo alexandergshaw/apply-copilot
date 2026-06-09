@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import {
   applyDefaultFiltersToAllJobSources,
@@ -68,18 +68,28 @@ function formatIntervalLabel(value: number | null): string {
   return `${value}m`;
 }
 
-function formatNextRunDue(lastRunAt: string, fetchIntervalMinutes: number | null): string {
-  if (!lastRunAt) {
+function formatNextRunDue(
+  lastAutoRunAt: string,
+  lastRunAt: string,
+  fetchIntervalMinutes: number | null,
+  now: Date,
+): string {
+  const referenceRunAt = lastAutoRunAt || lastRunAt;
+  if (!referenceRunAt) {
     return "Now";
   }
 
-  const lastRun = new Date(lastRunAt);
+  const lastRun = new Date(referenceRunAt);
   if (Number.isNaN(lastRun.getTime())) {
     return "Now";
   }
 
   const intervalMinutes = fetchIntervalMinutes ?? DEFAULT_FETCH_INTERVAL_MINUTES;
   const nextDue = new Date(lastRun.getTime() + intervalMinutes * 60 * 1000);
+  if (nextDue.getTime() <= now.getTime()) {
+    return "Now";
+  }
+
   return nextDue.toLocaleString();
 }
 
@@ -89,6 +99,15 @@ export function SourceForm({ initialSources }: SourceFormProps) {
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(new Date());
+    }, 30_000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const runAction = (
     action: () => Promise<ActionResult>,
@@ -329,6 +348,7 @@ export function SourceForm({ initialSources }: SourceFormProps) {
               <th className="px-4 py-3 font-semibold">Next due</th>
               <th className="px-4 py-3 font-semibold">Enabled</th>
               <th className="px-4 py-3 font-semibold">Last run</th>
+              <th className="px-4 py-3 font-semibold">Last auto run</th>
               <th className="px-4 py-3 font-semibold">Last success</th>
               <th className="px-4 py-3 font-semibold">Runs</th>
               <th className="px-4 py-3 font-semibold">Last error</th>
@@ -349,10 +369,18 @@ export function SourceForm({ initialSources }: SourceFormProps) {
                   <td className="px-4 py-3 text-slate-700">{source.remoteOnly ? "Yes" : "No"}</td>
                   <td className="px-4 py-3 text-slate-700">{source.postedWithinDays} day(s)</td>
                   <td className="px-4 py-3 text-slate-700">
-                    {formatNextRunDue(source.lastRunAt, source.fetchIntervalMinutes)}
+                    {formatNextRunDue(
+                      source.lastAutoRunAt,
+                      source.lastRunAt,
+                      source.fetchIntervalMinutes,
+                      now,
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-700">{source.enabled ? "Yes" : "No"}</td>
                   <td className="px-4 py-3 text-slate-700">{formatTimestamp(source.lastRunAt)}</td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {formatTimestamp(source.lastAutoRunAt)}
+                  </td>
                   <td className="px-4 py-3 text-slate-700">
                     {formatTimestamp(source.lastSuccessAt)}
                   </td>

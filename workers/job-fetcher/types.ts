@@ -14,6 +14,7 @@ export type JobSourceConfig = {
   company_name: string | null;
   company_slug: string | null;
   last_run_at: string | null;
+  last_auto_run_at: string | null;
   fetch_interval_minutes: number | null;
   remote_only: boolean;
   posted_within_days: number;

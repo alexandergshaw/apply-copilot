@@ -52,6 +52,7 @@ const sourceGreenhouse: JobSourceConfig = {
   company_name: "Acme",
   company_slug: "acme",
   last_run_at: null,
+  last_auto_run_at: null,
   fetch_interval_minutes: null,
   remote_only: true,
   posted_within_days: 1,
@@ -66,6 +67,7 @@ const sourceLever: JobSourceConfig = {
   company_name: "Acme",
   company_slug: "acme",
   last_run_at: null,
+  last_auto_run_at: null,
   fetch_interval_minutes: null,
   remote_only: true,
   posted_within_days: 1,
@@ -80,6 +82,7 @@ const sourceAshby: JobSourceConfig = {
   company_name: "Acme",
   company_slug: "acme",
   last_run_at: null,
+  last_auto_run_at: null,
   fetch_interval_minutes: null,
   remote_only: true,
   posted_within_days: 1,
@@ -137,7 +140,13 @@ describe("processSource", () => {
     expect(mocked.mockFetchGreenhouseJobs).toHaveBeenCalledWith(sourceGreenhouse);
     expect(mocked.mockUpsertNormalizedJobs).toHaveBeenCalled();
     expect(mocked.mockFinishFetchRun).toHaveBeenCalledWith({} as never, 99, "success", summary, null);
-    expect(mocked.mockUpdateSourceAfterRun).toHaveBeenCalledWith({} as never, sourceGreenhouse, true, null);
+    expect(mocked.mockUpdateSourceAfterRun).toHaveBeenCalledWith(
+      {} as never,
+      sourceGreenhouse,
+      "auto",
+      true,
+      null,
+    );
     expect(result.status).toBe("success");
   });
 
@@ -177,6 +186,7 @@ describe("processSource", () => {
     expect(mocked.mockUpdateSourceAfterRun).toHaveBeenCalledWith(
       {} as never,
       sourceGreenhouse,
+      "auto",
       false,
       "rate limited",
     );
@@ -283,6 +293,13 @@ describe("fetchJobsForSourceId", () => {
     expect(mocked.mockCreateServiceClient).toHaveBeenCalledTimes(1);
     expect(mocked.mockLoadJobSourceById).toHaveBeenCalledWith({}, 1);
     expect(result.sourceId).toBe(1);
+    expect(mocked.mockUpdateSourceAfterRun).toHaveBeenCalledWith(
+      {} as never,
+      expect.any(Object),
+      "manual",
+      true,
+      null,
+    );
   });
 
   it("returns failed result when processing fails", async () => {

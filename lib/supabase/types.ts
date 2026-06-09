@@ -162,6 +162,7 @@ export type JobSourceRow = {
   posted_within_days: number | null;
   enabled: boolean | null;
   last_run_at: string | null;
+  last_auto_run_at: string | null;
   last_success_at: string | null;
   last_error: string | null;
   run_count: number | null;
@@ -627,6 +628,7 @@ export function mapJobSource(row: JobSourceRow): JobSource {
     postedWithinDays: row.posted_within_days ?? 1,
     enabled: row.enabled ?? true,
     lastRunAt: toISOStringOrEmpty(row.last_run_at),
+    lastAutoRunAt: toISOStringOrEmpty(row.last_auto_run_at),
     lastSuccessAt: toISOStringOrEmpty(row.last_success_at),
     lastError: row.last_error ?? "",
     runCount: row.run_count ?? 0,

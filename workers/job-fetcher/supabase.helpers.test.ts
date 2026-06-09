@@ -72,6 +72,7 @@ function makeSource(overrides: Partial<JobSourceConfig> = {}): JobSourceConfig {
     company_name: "Acme",
     company_slug: "acme",
     last_run_at: null,
+    last_auto_run_at: null,
     fetch_interval_minutes: null,
     remote_only: true,
     posted_within_days: 1,
@@ -370,12 +371,13 @@ describe("updateSourceAfterRun", () => {
       from: () => jobSourcesTable,
     };
 
-    await updateSourceAfterRun(client as never, makeSource(), true, null);
+    await updateSourceAfterRun(client as never, makeSource(), "auto", true, null);
 
     expect(updateSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         run_count: 6,
         last_error: null,
+        last_auto_run_at: expect.any(String),
       }),
     );
   });
@@ -395,7 +397,7 @@ describe("updateSourceAfterRun", () => {
       from: () => jobSourcesTable,
     };
 
-    await updateSourceAfterRun(client as never, makeSource(), false, "provider failed");
+    await updateSourceAfterRun(client as never, makeSource(), "auto", false, "provider failed");
 
     expect(updateSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -403,6 +405,27 @@ describe("updateSourceAfterRun", () => {
         last_error: "provider failed",
       }),
     );
+  });
+
+  it("does not set last_auto_run_at for successful manual runs", async () => {
+    const jobSourcesTable = {
+      select: () => ({
+        eq: () => ({ maybeSingle: async () => ({ data: { run_count: 0 }, error: null }) }),
+      }),
+      update: (value: Record<string, unknown>) => ({
+        eq: async () => ({ error: null, value }),
+      }),
+    };
+
+    const updateSpy = vi.spyOn(jobSourcesTable, "update");
+    const client = {
+      from: () => jobSourcesTable,
+    };
+
+    await updateSourceAfterRun(client as never, makeSource(), "manual", true, null);
+
+    const updateArg = updateSpy.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(updateArg).not.toHaveProperty("last_auto_run_at");
   });
 
   it("throws when source update fails", async () => {
@@ -418,7 +441,7 @@ describe("updateSourceAfterRun", () => {
     };
 
     await expect(
-      updateSourceAfterRun(client as never, makeSource(), true, null),
+      updateSourceAfterRun(client as never, makeSource(), "auto", true, null),
     ).rejects.toThrow(/Failed to update source/);
   });
 });

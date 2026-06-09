@@ -69,7 +69,11 @@ describe("interval and due calculation", () => {
 
   it("is due when source has never run", () => {
     expect(
-      isSourceDue({ last_run_at: null, fetch_interval_minutes: null }, now, 10),
+      isSourceDue(
+        { last_auto_run_at: null, last_run_at: null, fetch_interval_minutes: null },
+        now,
+        10,
+      ),
     ).toBe(true);
   });
 
@@ -77,6 +81,7 @@ describe("interval and due calculation", () => {
     expect(
       isSourceDue(
         {
+          last_auto_run_at: null,
           last_run_at: "2026-06-09T11:50:00.000Z",
           fetch_interval_minutes: null,
         },
@@ -90,6 +95,7 @@ describe("interval and due calculation", () => {
     expect(
       isSourceDue(
         {
+          last_auto_run_at: null,
           last_run_at: "2026-06-09T11:55:00.000Z",
           fetch_interval_minutes: null,
         },
@@ -103,6 +109,7 @@ describe("interval and due calculation", () => {
     expect(
       isSourceDue(
         {
+          last_auto_run_at: null,
           last_run_at: "2026-06-09T11:50:00.000Z",
           fetch_interval_minutes: 15,
         },
@@ -114,6 +121,7 @@ describe("interval and due calculation", () => {
     expect(
       isSourceDue(
         {
+          last_auto_run_at: null,
           last_run_at: "2026-06-09T11:45:00.000Z",
           fetch_interval_minutes: 15,
         },
@@ -126,6 +134,7 @@ describe("interval and due calculation", () => {
   it("returns next due time for not-yet-due source", () => {
     const nextDue = getNextDueAt(
       {
+        last_auto_run_at: null,
         last_run_at: "2026-06-09T11:50:00.000Z",
         fetch_interval_minutes: 15,
       },
@@ -134,5 +143,19 @@ describe("interval and due calculation", () => {
     );
 
     expect(nextDue?.toISOString()).toBe("2026-06-09T12:05:00.000Z");
+  });
+
+  it("prefers last_auto_run_at over last_run_at for due checks", () => {
+    expect(
+      isSourceDue(
+        {
+          last_auto_run_at: "2026-06-09T11:59:00.000Z",
+          last_run_at: "2026-06-09T10:00:00.000Z",
+          fetch_interval_minutes: 10,
+        },
+        now,
+        10,
+      ),
+    ).toBe(false);
   });
 });

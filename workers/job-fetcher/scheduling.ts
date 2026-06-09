@@ -31,17 +31,28 @@ export function getEffectiveFetchIntervalMinutes(
   return defaultFetchIntervalMinutes;
 }
 
+function getLastRunReferenceAt(
+  source: Pick<JobSourceConfig, "last_auto_run_at" | "last_run_at">,
+): Date | null {
+  const reference = source.last_auto_run_at ?? source.last_run_at;
+  if (!reference) {
+    return null;
+  }
+
+  const parsed = new Date(reference);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export function isSourceDue(
-  source: Pick<JobSourceConfig, "last_run_at" | "fetch_interval_minutes">,
+  source: Pick<
+    JobSourceConfig,
+    "last_auto_run_at" | "last_run_at" | "fetch_interval_minutes"
+  >,
   now: Date,
   defaultFetchIntervalMinutes: number,
 ): boolean {
-  if (!source.last_run_at) {
-    return true;
-  }
-
-  const lastRun = new Date(source.last_run_at);
-  if (Number.isNaN(lastRun.getTime())) {
+  const lastRun = getLastRunReferenceAt(source);
+  if (!lastRun) {
     return true;
   }
 
@@ -51,16 +62,15 @@ export function isSourceDue(
 }
 
 export function getNextDueAt(
-  source: Pick<JobSourceConfig, "last_run_at" | "fetch_interval_minutes">,
+  source: Pick<
+    JobSourceConfig,
+    "last_auto_run_at" | "last_run_at" | "fetch_interval_minutes"
+  >,
   now: Date,
   defaultFetchIntervalMinutes: number,
 ): Date | null {
-  if (!source.last_run_at) {
-    return null;
-  }
-
-  const lastRun = new Date(source.last_run_at);
-  if (Number.isNaN(lastRun.getTime())) {
+  const lastRun = getLastRunReferenceAt(source);
+  if (!lastRun) {
     return null;
   }
 

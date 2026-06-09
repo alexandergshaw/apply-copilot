@@ -175,6 +175,7 @@ export function filterPostingsForSource(
 export async function processSource(
   client: WorkerSupabaseClient,
   source: JobSourceConfig,
+  runMode: "auto" | "manual" = "auto",
 ): Promise<SourceRunResult> {
   let runId: number | null = null;
   try {
@@ -196,7 +197,7 @@ export async function processSource(
     const filteredPostings = filterPostingsForSource(source, postings);
     const summary = await upsertNormalizedJobs(client, source, filteredPostings);
     await finishFetchRun(client, runId, "success", summary, null);
-    await updateSourceAfterRun(client, source, true, null);
+    await updateSourceAfterRun(client, source, runMode, true, null);
     return {
       sourceId: source.id,
       sourceName: source.name,
@@ -213,7 +214,7 @@ export async function processSource(
       /* ignore */
     }
     try {
-      await updateSourceAfterRun(client, source, false, message);
+      await updateSourceAfterRun(client, source, runMode, false, message);
     } catch {
       /* ignore */
     }
@@ -288,7 +289,7 @@ export async function fetchAllEnabledJobSources(): Promise<FetchAllResult> {
 
   const results: SourceRunResult[] = [];
   for (const source of dueSources) {
-    const result = await processSource(client, source);
+    const result = await processSource(client, source, "auto");
     logResult(result);
     results.push(result);
   }
@@ -317,7 +318,7 @@ export async function fetchJobsForSourceId(sourceId: number): Promise<SourceRunR
     );
   }
 
-  const result = await processSource(client, source);
+  const result = await processSource(client, source, "manual");
   logResult(result);
   return result;
 }

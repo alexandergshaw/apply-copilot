@@ -53,6 +53,7 @@ describe("mapJobSource filter mapping", () => {
       posted_within_days: 3,
       enabled: true,
       last_run_at: null,
+      last_auto_run_at: "2026-06-09T01:00:00.000Z",
       last_success_at: null,
       last_error: null,
       run_count: 0,
@@ -62,6 +63,7 @@ describe("mapJobSource filter mapping", () => {
 
     expect(source.remoteOnly).toBe(false);
     expect(source.postedWithinDays).toBe(3);
+    expect(source.lastAutoRunAt).toBe("2026-06-09T01:00:00.000Z");
   });
 
   it("uses defaults when filter columns are null", () => {
@@ -77,6 +79,7 @@ describe("mapJobSource filter mapping", () => {
       posted_within_days: null,
       enabled: true,
       last_run_at: null,
+      last_auto_run_at: null,
       last_success_at: null,
       last_error: null,
       run_count: 0,

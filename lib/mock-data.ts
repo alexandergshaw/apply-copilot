@@ -89,6 +89,7 @@ export type JobSource = {
   postedWithinDays: number;
   enabled: boolean;
   lastRunAt: string;
+  lastAutoRunAt: string;
   lastSuccessAt: string;
   lastError: string;
   runCount: number;
@@ -277,6 +278,7 @@ export const jobSources: JobSource[] = [
     postedWithinDays: 1,
     enabled: true,
     lastRunAt: "",
+    lastAutoRunAt: "",
     lastSuccessAt: "",
     lastError: "",
     runCount: 0,
@@ -293,6 +295,7 @@ export const jobSources: JobSource[] = [
     postedWithinDays: 1,
     enabled: false,
     lastRunAt: "",
+    lastAutoRunAt: "",
     lastSuccessAt: "",
     lastError: "",
     runCount: 0,
@@ -309,6 +312,7 @@ export const jobSources: JobSource[] = [
     postedWithinDays: 1,
     enabled: false,
     lastRunAt: "",
+    lastAutoRunAt: "",
     lastSuccessAt: "",
     lastError: "",
     runCount: 0,

@@ -17,6 +17,7 @@ function makeSource(
     company_name: "Example Inc",
     company_slug: "acme",
     last_run_at: null,
+    last_auto_run_at: null,
     fetch_interval_minutes: null,
     remote_only: true,
     posted_within_days: 1,

@@ -74,6 +74,7 @@ type JobSourceConfigRow = {
   company_name: string | null;
   company_slug: string | null;
   last_run_at: string | null;
+  last_auto_run_at: string | null;
   fetch_interval_minutes: number | null;
   remote_only: boolean | null;
   posted_within_days: number | null;
@@ -92,6 +93,7 @@ function toConfig(row: JobSourceConfigRow): JobSourceConfig | null {
     company_name: row.company_name,
     company_slug: row.company_slug,
     last_run_at: row.last_run_at,
+    last_auto_run_at: row.last_auto_run_at,
     fetch_interval_minutes: row.fetch_interval_minutes,
     remote_only: row.remote_only ?? true,
     posted_within_days: row.posted_within_days ?? 1,
@@ -100,7 +102,7 @@ function toConfig(row: JobSourceConfigRow): JobSourceConfig | null {
 }
 
 const SOURCE_COLUMNS =
-  "id, name, source_type, url, company_name, company_slug, last_run_at, fetch_interval_minutes, remote_only, posted_within_days, enabled";
+  "id, name, source_type, url, company_name, company_slug, last_run_at, last_auto_run_at, fetch_interval_minutes, remote_only, posted_within_days, enabled";
 
 /**
  * Load all enabled job sources whose source_type is a supported job board.
@@ -318,6 +320,7 @@ export async function finishFetchRun(
 export async function updateSourceAfterRun(
   client: WorkerSupabaseClient,
   source: JobSourceConfig,
+  runMode: "auto" | "manual",
   success: boolean,
   errorMessage: string | null,
 ): Promise<void> {
@@ -335,6 +338,9 @@ export async function updateSourceAfterRun(
   };
   if (success) {
     update.last_success_at = nowIso;
+    if (runMode === "auto") {
+      update.last_auto_run_at = nowIso;
+    }
   }
 
   const { error } = await client.from("job_sources").update(update).eq("id", source.id);
